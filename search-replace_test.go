@@ -11,6 +11,24 @@ func BenchmarkFix(b *testing.B) {
 	}
 }
 
+func BenchmarkSimpleReplace(b *testing.B) {
+	line := "http://automattic.com"
+	from := "http:"
+	to := "https:"
+	for i := 0; i < b.N; i++ {
+		replaceAndFix(line, from, to)
+	}
+}
+
+func BenchmarkSerializedReplace(b *testing.B) {
+	line := `s:0:"http://automattic.com";`
+	from := "http://automattic.com"
+	to := "https://automattic.com"
+	for i := 0; i < b.N; i++ {
+		replaceAndFix(line, from, to)
+	}
+}
+
 func TestReplace(t *testing.T) {
 	var tests = []struct {
 		testName string
