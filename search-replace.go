@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	searchRe  = `s:\d+:.*\";`
+	searchRe  = `s:\d+:\\?\".*?\\?\";`
 	replaceRe = `(?:s:)(?:\d+:)(\\?\")(.*?)(\\?\";)`
 	inputRe   = `^[A-Za-z0-9\.:/]+$`
 )
@@ -54,19 +54,23 @@ func main() {
 			break
 		}
 
-		if !strings.Contains(line, from) {
-			fmt.Print(line)
-			continue
-		}
-
-		// Find/replace from->to
-		line = strings.Replace(line, from, to, -1)
-
-		// Fix serialized string lengths
-		line = search.ReplaceAllStringFunc(line, fix)
-
+		line = replaceAndFix(line, from, to)
 		fmt.Print(line)
 	}
+}
+
+func replaceAndFix(line, from, to string) string {
+	if !strings.Contains(line, from) {
+		return line
+	}
+
+	// Find/replace from->to
+	line = strings.Replace(line, from, to, -1)
+
+	// Fix serialized string lengths
+	line = search.ReplaceAllStringFunc(line, fix)
+
+	return line
 }
 
 func fix(matches string) string {

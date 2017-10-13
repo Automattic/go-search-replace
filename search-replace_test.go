@@ -11,6 +11,44 @@ func BenchmarkFix(b *testing.B) {
 	}
 }
 
+func TestReplace(t *testing.T) {
+	var tests = []struct {
+		testName string
+		in       string
+		out      string
+		from     string
+		to       string
+	}{
+		{
+			testName: "http to https",
+
+			from: "http://automattic.com",
+			to:   "https://automattic.com",
+
+			in:  `s:21:\"http://automattic.com\";`,
+			out: `s:22:\"https://automattic.com\";`,
+		},
+		{
+			testName: "URL in SQL",
+
+			from: "http://automattic.com",
+			to:   "https://automattic.com",
+
+			in:  `('s:21:\"http://automattic.com\";'),('s:21:\"http://automattic.com\";')`,
+			out: `('s:22:\"https://automattic.com\";'),('s:22:\"https://automattic.com\";')`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			replaced := replaceAndFix(test.in, test.from, test.to)
+			if replaced != test.out {
+				t.Error("Expected:", test.out, "Actual:", replaced)
+			}
+		})
+	}
+}
+
 func TestFix(t *testing.T) {
 	var tests = []struct {
 		testName string
