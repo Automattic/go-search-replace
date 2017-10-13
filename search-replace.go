@@ -10,15 +10,15 @@ import (
 )
 
 const (
-	SEARCH  = `s:\d+:.*\";`
-	REPLACE = `(?:s:)(?:\d+:)(\\?\")(.*?)(\\?\";)`
-	INPUT   = `^[A-Za-z0-9\.:/]+$`
+	searchRe  = `s:\d+:.*\";`
+	replaceRe = `(?:s:)(?:\d+:)(\\?\")(.*?)(\\?\";)`
+	inputRe   = `^[A-Za-z0-9\.:/]+$`
 )
 
 var (
-	search  = regexp.MustCompile(SEARCH)
-	replace = regexp.MustCompile(REPLACE)
-	input   = regexp.MustCompile(INPUT)
+	search  = regexp.MustCompile(searchRe)
+	replace = regexp.MustCompile(replaceRe)
+	input   = regexp.MustCompile(inputRe)
 )
 
 func main() {
