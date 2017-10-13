@@ -4,6 +4,10 @@
 
 Search & replace URLs in WordPress SQL files.
 
+```
+cat example-from.com.sql | search-replace example-from.com example-to.com > example-to.com.sql
+```
+
 ## Overview
 
 Migrating WordPress databases often requires replacing domain names. This is a
