@@ -55,6 +55,15 @@ func TestReplace(t *testing.T) {
 			in:  `('s:21:\"http://automattic.com\";'),('s:21:\"http://automattic.com\";')`,
 			out: `('s:22:\"https://automattic.com\";'),('s:22:\"https://automattic.com\";')`,
 		},
+		{
+			testName: "only fix updated strings",
+
+			from: "http://automattic.com",
+			to:   "https://automattic.com",
+
+			in:  `('s:21:\"http://automattic.com\";'),('s:21:\"https://a8c.com\";')`,
+			out: `('s:22:\"https://automattic.com\";'),('s:21:\"https://a8c.com\";')`,
+		},
 	}
 
 	for _, test := range tests {

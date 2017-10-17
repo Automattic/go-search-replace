@@ -68,13 +68,20 @@ func replaceAndFix(line, from, to string) string {
 	line = strings.Replace(line, from, to, -1)
 
 	// Fix serialized string lengths
-	line = search.ReplaceAllStringFunc(line, fix)
+	line = search.ReplaceAllStringFunc(line, func(match string) string {
+		// Skip fixing if we didn't replace anything
+		if !strings.Contains(match, to) {
+			return match
+		}
+
+		return fix(match)
+	})
 
 	return line
 }
 
-func fix(matches string) string {
-	parts := replace.FindStringSubmatch(matches)
+func fix(match string) string {
+	parts := replace.FindStringSubmatch(match)
 
 	// Get string length - number of escaped \
 	length := len(parts[2]) - strings.Count(parts[2], `\\`)
