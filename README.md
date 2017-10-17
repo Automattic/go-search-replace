@@ -25,3 +25,9 @@ reason, we're limiting the search domain to roughly include characters that can
 be used in domain names. Since the most common usage for search-replace is
 changing domain names or switching http: to https:, this is an easy way to avoid
 otherwise complex issues.
+
+## Build
+
+```
+gox -os="linux" -os="darwin" -os="windows" -arch="amd64" -arch="386" -output="build/{{.Dir}}_{{.OS}}_{{.Arch}}"
+```
