@@ -107,6 +107,11 @@ func TestFix(t *testing.T) {
 			from:     `s:0:"https:\\/\\/automattic.com";`,
 			to:       `s:24:"https:\\/\\/automattic.com";`,
 		},
+		{
+			testName: "Correctly count multibyte characters",
+			from:     `s:0:"Does it work with emoji? 🙃";`,
+			to:       `s:29:"Does it work with emoji? 🙃";`,
+		},
 	}
 
 	for _, test := range tests {
