@@ -112,6 +112,11 @@ func TestFix(t *testing.T) {
 			from:     `s:0:"Does it work with emoji? 🙃";`,
 			to:       `s:29:"Does it work with emoji? 🙃";`,
 		},
+		{
+			testName: "Many escaped characters (including escaped backslash)",
+			from:     `s:0:"\t\r\n \t\r\n \t\r\n \\ <a href=\"https://example.com\">Many\tescaped\tcharacters</a>";`,
+			to:       `s:71:"\t\r\n \t\r\n \t\r\n \\ <a href=\"https://example.com\">Many\tescaped\tcharacters</a>";`,
+		},
 	}
 
 	for _, test := range tests {

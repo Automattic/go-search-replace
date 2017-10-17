@@ -83,7 +83,7 @@ func replaceAndFix(line, from, to string) string {
 func fix(match string) string {
 	parts := replace.FindStringSubmatch(match)
 
-	// Get string length - number of escaped \
-	length := len(parts[2]) - strings.Count(parts[2], `\\`)
+	// Get string length - number of escaped characters and avoid double counting escaped \
+	length := len(parts[2]) - (strings.Count(parts[2], `\`) - strings.Count(parts[2], `\\`))
 	return fmt.Sprintf("s:%d:%s%s%s", length, parts[1], parts[2], parts[3])
 }
