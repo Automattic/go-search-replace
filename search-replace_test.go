@@ -128,3 +128,26 @@ func TestFix(t *testing.T) {
 		})
 	}
 }
+
+func TestInput(t *testing.T) {
+	var tests = []struct {
+		testName string
+		in       string
+		valid    bool
+	}{
+		{
+			testName: "Simple domain name",
+			in:       "automattic.com",
+			valid:    true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			valid := validInput(test.in)
+			if valid != test.valid {
+				t.Error("Expected:", test.valid, "Actual:", valid)
+			}
+		})
+	}
+}

@@ -13,41 +13,36 @@ import (
 const (
 	searchRe  = `s:\d+:\\?\".*?\\?\";`
 	replaceRe = `(?:s:)(?:\d+:)(\\?\")(.*?)(\\?\";)`
-	inputRe   = `^[A-Za-z0-9\-\.:/]+$`
+
+	inputRe = `^[A-Za-z0-9\-\.:/]{4,}$`
 )
 
 var (
 	search  = regexp.MustCompile(searchRe)
 	replace = regexp.MustCompile(replaceRe)
-	input   = regexp.MustCompile(inputRe)
-
-	from string
-	to   string
 )
 
-func init() {
+func main() {
 	if len(os.Args) < 3 {
 		fmt.Fprintln(os.Stderr, "Usage: search-replace <from> <to>")
 		os.Exit(1)
 		return
 	}
 
-	from = os.Args[1]
-	if !input.MatchString(from) {
+	from := os.Args[1]
+	if !validInput(from) {
 		fmt.Fprintln(os.Stderr, "Invalid from URL")
 		os.Exit(2)
 		return
 	}
 
-	to = os.Args[2]
-	if !input.MatchString(to) {
+	to := os.Args[2]
+	if !validInput(to) {
 		fmt.Fprintln(os.Stderr, "Invalid to URL")
 		os.Exit(3)
 		return
 	}
-}
 
-func main() {
 	var wg sync.WaitGroup
 	lines := make(chan chan string, 10)
 
@@ -117,4 +112,13 @@ func fix(match string) string {
 	// Get string length - number of escaped characters and avoid double counting escaped \
 	length := len(parts[2]) - (strings.Count(parts[2], `\`) - strings.Count(parts[2], `\\`))
 	return fmt.Sprintf("s:%d:%s%s%s", length, parts[1], parts[2], parts[3])
+}
+
+func validInput(in string) bool {
+	input := regexp.MustCompile(inputRe)
+	if !input.MatchString(in) {
+		return false
+	}
+
+	return true
 }
