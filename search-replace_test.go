@@ -140,6 +140,21 @@ func TestInput(t *testing.T) {
 			in:       "automattic.com",
 			valid:    true,
 		},
+		{
+			testName: "Short string",
+			in:       "s:",
+			valid:    false,
+		},
+		{
+			testName: "SQL string",
+			in:       "),(",
+			valid:    false,
+		},
+		{
+			testName: "Serialization structure",
+			in:       "a:4:",
+			valid:    false,
+		},
 	}
 
 	for _, test := range tests {

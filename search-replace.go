@@ -14,7 +14,8 @@ const (
 	searchRe  = `s:\d+:\\?\".*?\\?\";`
 	replaceRe = `(?:s:)(?:\d+:)(\\?\")(.*?)(\\?\";)`
 
-	inputRe = `^[A-Za-z0-9\-\.:/]{4,}$`
+	inputRe    = `^[A-Za-z0-9\-\.:/]{4,}$`
+	badInputRe = `\w:\d+:`
 )
 
 var (
@@ -117,6 +118,11 @@ func fix(match string) string {
 func validInput(in string) bool {
 	input := regexp.MustCompile(inputRe)
 	if !input.MatchString(in) {
+		return false
+	}
+
+	bad := regexp.MustCompile(badInputRe)
+	if bad.MatchString(in) {
 		return false
 	}
 
