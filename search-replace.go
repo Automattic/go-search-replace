@@ -13,7 +13,7 @@ import (
 const (
 	searchRe  = `s:\d+:\\?\".*?\\?\";`
 	replaceRe = `(?:s:)(?:\d+:)(\\?\")(.*?)(\\?\";)`
-	inputRe   = `^[A-Za-z0-9\.:/]+$`
+	inputRe   = `^[A-Za-z0-9\-\.:/]+$`
 )
 
 var (
