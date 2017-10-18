@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -19,28 +20,40 @@ var (
 	search  = regexp.MustCompile(searchRe)
 	replace = regexp.MustCompile(replaceRe)
 	input   = regexp.MustCompile(inputRe)
+
+	from string
+	to   string
+
+	flagFix bool
 )
 
-func main() {
-	if len(os.Args) < 3 {
+func init() {
+	flag.BoolVar(&flagFix, "fix-only", false, "Fix all serialized strings")
+	flag.Parse()
+
+	if flagFix {
+		return
+	}
+
+	if len(flag.Args()) < 2 {
 		fmt.Fprintln(os.Stderr, "Usage: search-replace <from> <to>")
-		return
+		os.Exit(1)
 	}
 
-	from := os.Args[1]
-	to := os.Args[2]
+	from = flag.Arg(0)
+	if !input.MatchString(from) {
+		fmt.Fprintln(os.Stderr, "Invalid from URL")
+		os.Exit(2)
+	}
 
+	to = flag.Arg(1)
 	if !input.MatchString(to) {
-		fmt.Fprintln(os.Stderr, "Invalid URL")
-		return
+		fmt.Fprintln(os.Stderr, "Invalid to URL")
+		os.Exit(3)
 	}
+}
 
-	if !input.MatchString(to) {
-		fmt.Fprintln(os.Stderr, "Invalid URL")
-		return
-	}
-
-	// Replace
+func main() {
 	r := bufio.NewReaderSize(os.Stdin, 2*1024*1024)
 	for {
 		line, err := r.ReadString('\n')
@@ -54,7 +67,12 @@ func main() {
 			break
 		}
 
-		line = replaceAndFix(line, from, to)
+		if flagFix {
+			line = search.ReplaceAllStringFunc(line, fix)
+		} else {
+			line = replaceAndFix(line, from, to)
+		}
+
 		fmt.Print(line)
 	}
 }
