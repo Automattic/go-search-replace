@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 const (
@@ -40,22 +41,45 @@ func main() {
 		return
 	}
 
-	// Replace
-	r := bufio.NewReaderSize(os.Stdin, 2*1024*1024)
-	for {
-		line, err := r.ReadString('\n')
+	var wg sync.WaitGroup
+	wg.Add(1)
+	lines := make(chan chan string, 10)
 
-		if err == io.EOF {
-			break
+	go func() {
+		defer wg.Done()
+
+		r := bufio.NewReaderSize(os.Stdin, 2*1024*1024)
+		for {
+			line, err := r.ReadString('\n')
+
+			if err == io.EOF {
+				break
+			}
+
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err.Error())
+				break
+			}
+
+			wg.Add(1)
+			ch := make(chan string)
+			lines <- ch
+
+			go func(line string) {
+				defer wg.Done()
+				line = replaceAndFix(line, from, to)
+				ch <- line
+			}(line)
 		}
+	}()
 
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err.Error())
-			break
-		}
+	go func() {
+		wg.Wait()
+		close(lines)
+	}()
 
-		line = replaceAndFix(line, from, to)
-		fmt.Print(line)
+	for line := range lines {
+		fmt.Print(<-line)
 	}
 }
 
