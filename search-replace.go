@@ -29,15 +29,14 @@ func main() {
 	}
 
 	from := os.Args[1]
-	to := os.Args[2]
-
-	if !input.MatchString(to) {
-		fmt.Fprintln(os.Stderr, "Invalid URL")
+	if !input.MatchString(from) {
+		fmt.Fprintln(os.Stderr, "Invalid from URL")
 		return
 	}
 
+	to := os.Args[2]
 	if !input.MatchString(to) {
-		fmt.Fprintln(os.Stderr, "Invalid URL")
+		fmt.Fprintln(os.Stderr, "Invalid to URL")
 		return
 	}
 
