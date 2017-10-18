@@ -20,26 +20,34 @@ var (
 	search  = regexp.MustCompile(searchRe)
 	replace = regexp.MustCompile(replaceRe)
 	input   = regexp.MustCompile(inputRe)
+
+	from string
+	to   string
 )
 
-func main() {
+func init() {
 	if len(os.Args) < 3 {
 		fmt.Fprintln(os.Stderr, "Usage: search-replace <from> <to>")
+		os.Exit(1)
 		return
 	}
 
-	from := os.Args[1]
+	from = os.Args[1]
 	if !input.MatchString(from) {
 		fmt.Fprintln(os.Stderr, "Invalid from URL")
+		os.Exit(2)
 		return
 	}
 
-	to := os.Args[2]
+	to = os.Args[2]
 	if !input.MatchString(to) {
 		fmt.Fprintln(os.Stderr, "Invalid to URL")
+		os.Exit(3)
 		return
 	}
+}
 
+func main() {
 	var wg sync.WaitGroup
 	lines := make(chan chan string, 10)
 
