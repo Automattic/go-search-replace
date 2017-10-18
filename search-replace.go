@@ -41,9 +41,9 @@ func main() {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
 	lines := make(chan chan string, 10)
 
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
