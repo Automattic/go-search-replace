@@ -30,4 +30,5 @@ otherwise complex issues.
 
 ```
 gox -os="linux" -os="darwin" -os="windows" -arch="amd64" -arch="386" -output="build/{{.Dir}}_{{.OS}}_{{.Arch}}"
+gzip build/*
 ```
