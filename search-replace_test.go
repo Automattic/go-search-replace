@@ -5,7 +5,7 @@ import (
 )
 
 func BenchmarkFix(b *testing.B) {
-	test := `s:0:"https://automattic.com";`
+	test := `s:0:\"https://automattic.com\";`
 	for i := 0; i < b.N; i++ {
 		fix(test)
 	}
@@ -21,7 +21,7 @@ func BenchmarkSimpleReplace(b *testing.B) {
 }
 
 func BenchmarkSerializedReplace(b *testing.B) {
-	line := `s:0:"http://automattic.com";`
+	line := `s:0:\"http://automattic.com\";`
 	from := "http://automattic.com"
 	to := "https://automattic.com"
 	for i := 0; i < b.N; i++ {
@@ -84,13 +84,13 @@ func TestFix(t *testing.T) {
 	}{
 		{
 			testName: "Empty string",
-			from:     `s:10:"";`,
-			to:       `s:0:"";`,
+			from:     `s:10:\"\";`,
+			to:       `s:0:\"\";`,
 		},
 		{
 			testName: "Empty string (corrected)",
-			from:     `s:0:"";`,
-			to:       `s:0:"";`,
+			from:     `s:0:\"\";`,
+			to:       `s:0:\"\";`,
 		},
 		{
 			testName: "Empty string (escaped quotes)",
@@ -99,23 +99,23 @@ func TestFix(t *testing.T) {
 		},
 		{
 			testName: "Line break",
-			from:     `s:0:"line\\nbreak";`,
-			to:       `s:11:"line\\nbreak";`,
+			from:     `s:0:\"line\\nbreak\";`,
+			to:       `s:11:\"line\\nbreak\";`,
 		},
 		{
 			testName: "Escaped URL",
-			from:     `s:0:"https:\\/\\/automattic.com";`,
-			to:       `s:24:"https:\\/\\/automattic.com";`,
+			from:     `s:0:\"https:\\/\\/automattic.com\";`,
+			to:       `s:24:\"https:\\/\\/automattic.com\";`,
 		},
 		{
 			testName: "Correctly count multibyte characters",
-			from:     `s:0:"Does it work with emoji? 🙃";`,
-			to:       `s:29:"Does it work with emoji? 🙃";`,
+			from:     `s:0:\"Does it work with emoji? 🙃\";`,
+			to:       `s:29:\"Does it work with emoji? 🙃\";`,
 		},
 		{
 			testName: "Many escaped characters (including escaped backslash)",
-			from:     `s:0:"\t\r\n \t\r\n \t\r\n \\ <a href=\"https://example.com\">Many\tescaped\tcharacters</a>";`,
-			to:       `s:71:"\t\r\n \t\r\n \t\r\n \\ <a href=\"https://example.com\">Many\tescaped\tcharacters</a>";`,
+			from:     `s:0:\"\t\r\n \t\r\n \t\r\n \\ <a href=\"https://example.com\">Many\tescaped\tcharacters</a>\";`,
+			to:       `s:71:\"\t\r\n \t\r\n \t\r\n \\ <a href=\"https://example.com\">Many\tescaped\tcharacters</a>\";`,
 		},
 	}
 

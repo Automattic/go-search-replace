@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	searchRe  = `s:\d+:\\?\".*?\\?\";`
-	replaceRe = `(?:s:)(?:\d+:)(\\?\")(.*?)(\\?\";)`
+	searchRe  = `s:\d+:\\\".*?\\\";`
+	replaceRe = `(?:s:)(?:\d+:)(\\\")(.*?)(\\\";)`
 
 	inputRe    = `^[A-Za-z0-9\-\.:/]{4,}$`
 	badInputRe = `\w:\d+:`
@@ -109,6 +109,11 @@ func replaceAndFix(line, from, to string) string {
 
 func fix(match string) string {
 	parts := replace.FindStringSubmatch(match)
+
+	if len(parts) < 3 {
+		// This looks wrong, don't touch anything
+		return match
+	}
 
 	// Get string length - number of escaped characters and avoid double counting escaped \
 	length := len(parts[2]) - (strings.Count(parts[2], `\`) - strings.Count(parts[2], `\\`))
