@@ -2,10 +2,14 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"regexp"
+	"runtime"
+	"runtime/pprof"
 	"strings"
 	"sync"
 )
@@ -21,23 +25,42 @@ const (
 var (
 	search  = regexp.MustCompile(searchRe)
 	replace = regexp.MustCompile(replaceRe)
+
+	// CLI flags
+	cpuprofile = flag.String("cpuprofile", "", "write cpu profile `file`")
+	memprofile = flag.String("memprofile", "", "write memory profile to `file`")
 )
 
 func main() {
-	if len(os.Args) < 3 {
-		fmt.Fprintln(os.Stderr, "Usage: search-replace <from> <to>")
+	flag.Parse()
+
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal("could not create CPU profile: ", err)
+		}
+
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal("could not start CPU profile: ", err)
+		}
+
+		defer pprof.StopCPUProfile()
+	}
+
+	if len(flag.Args()) != 2 {
+		fmt.Fprintln(os.Stderr, "Usage: search-replace [OPTIONS] <from> <to>")
 		os.Exit(1)
 		return
 	}
 
-	from := os.Args[1]
+	from := flag.Arg(0)
 	if !validInput(from) {
 		fmt.Fprintln(os.Stderr, "Invalid from URL")
 		os.Exit(2)
 		return
 	}
 
-	to := os.Args[2]
+	to := flag.Arg(1)
 	if !validInput(to) {
 		fmt.Fprintln(os.Stderr, "Invalid to URL")
 		os.Exit(3)
@@ -83,6 +106,20 @@ func main() {
 
 	for line := range lines {
 		fmt.Print(<-line)
+	}
+
+	if *memprofile != "" {
+		f, err := os.Create(*memprofile)
+		if err != nil {
+			log.Fatal("could not create memory profile: ", err)
+		}
+
+		runtime.GC() // get up-to-date statistics
+		if err := pprof.WriteHeapProfile(f); err != nil {
+			log.Fatal("could not write memory profile: ", err)
+		}
+
+		f.Close()
 	}
 }
 
