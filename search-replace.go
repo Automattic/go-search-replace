@@ -14,8 +14,10 @@ const (
 	searchRe  = `s:\d+:\\\".*?\\\";`
 	replaceRe = `(?:s:)(?:\d+:)(\\\")(.*?)(\\\";)`
 
-	inputRe    = `^[A-Za-z0-9\-\.:/]{4,}$`
-	badInputRe = `\w:\d+:`
+	badInputRe   = `\w:\d+:`
+	inputRe      = `^[A-Za-z0-9\-\.:/]+$`
+	minInLength  = 4
+	minOutLength = 2
 )
 
 var (
@@ -31,15 +33,15 @@ func main() {
 	}
 
 	from := os.Args[1]
-	if !validInput(from) {
-		fmt.Fprintln(os.Stderr, "Invalid from URL")
+	if !validInput(from, minInLength) {
+		fmt.Fprintln(os.Stderr, "Invalid <from> URL, minimum length is 4")
 		os.Exit(2)
 		return
 	}
 
 	to := os.Args[2]
-	if !validInput(to) {
-		fmt.Fprintln(os.Stderr, "Invalid to URL")
+	if !validInput(to, minOutLength) {
+		fmt.Fprintln(os.Stderr, "Invalid <to>, minimum length is 1")
 		os.Exit(3)
 		return
 	}
@@ -120,7 +122,11 @@ func fix(match string) string {
 	return fmt.Sprintf("s:%d:%s%s%s", length, parts[1], parts[2], parts[3])
 }
 
-func validInput(in string) bool {
+func validInput(in string, length int) bool {
+	if len(in) < length {
+		return false
+	}
+
 	input := regexp.MustCompile(inputRe)
 	if !input.MatchString(in) {
 		return false

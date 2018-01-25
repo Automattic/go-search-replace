@@ -159,7 +159,7 @@ func TestInput(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			valid := validInput(test.in)
+			valid := validInput(test.in, minInLength)
 			if valid != test.valid {
 				t.Error("Expected:", test.valid, "Actual:", valid)
 			}
