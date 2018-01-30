@@ -83,6 +83,44 @@ func TestReplace(t *testing.T) {
 	}
 }
 
+func TestMultiReplace(t *testing.T) {
+	var tests = []struct {
+		testName     string
+		in           string
+		out          string
+		replacements map[string]string
+	}{
+		{
+			testName: "simple test",
+			in:       "http://automattic.com",
+			out:      "https://automattic.org",
+			replacements: map[string]string{
+				"http:":          "https:",
+				"automattic.com": "automattic.org",
+			},
+		},
+		{
+			testName: "overlapping",
+			in:       "http://automattic.com",
+			out:      "https://automattic.org",
+			replacements: map[string]string{
+				"http:":            "https:",
+				"//automattic.com": "//automattic.org",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			replaced := replaceAndFix(test.in, test.replacements)
+
+			if replaced != test.out {
+				t.Error("Expected:", test.out, "Actual:", replaced)
+			}
+		})
+	}
+}
+
 func TestFix(t *testing.T) {
 	var tests = []struct {
 		testName string
