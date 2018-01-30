@@ -16,7 +16,9 @@ func BenchmarkSimpleReplace(b *testing.B) {
 	from := "http:"
 	to := "https:"
 	for i := 0; i < b.N; i++ {
-		replaceAndFix(line, from, to)
+		replaceAndFix(line, map[string]string{
+			from: to,
+		})
 	}
 }
 
@@ -25,7 +27,9 @@ func BenchmarkSerializedReplace(b *testing.B) {
 	from := "http://automattic.com"
 	to := "https://automattic.com"
 	for i := 0; i < b.N; i++ {
-		replaceAndFix(line, from, to)
+		replaceAndFix(line, map[string]string{
+			from: to,
+		})
 	}
 }
 
@@ -68,7 +72,10 @@ func TestReplace(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			replaced := replaceAndFix(test.in, test.from, test.to)
+			replaced := replaceAndFix(test.in, map[string]string{
+				test.from: test.to,
+			})
+
 			if replaced != test.out {
 				t.Error("Expected:", test.out, "Actual:", replaced)
 			}

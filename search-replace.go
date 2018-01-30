@@ -32,18 +32,32 @@ func main() {
 		return
 	}
 
-	from := os.Args[1]
-	if !validInput(from, minInLength) {
-		fmt.Fprintln(os.Stderr, "Invalid <from> URL, minimum length is 4")
-		os.Exit(2)
+	replacements := make(map[string]string)
+	args := os.Args[1:]
+
+	if len(args)%2 > 0 {
+		fmt.Fprintln(os.Stderr, "All replacements must have a <from> and <to> value")
+		os.Exit(1)
 		return
 	}
 
-	to := os.Args[2]
-	if !validInput(to, minOutLength) {
-		fmt.Fprintln(os.Stderr, "Invalid <to>, minimum length is 1")
-		os.Exit(3)
-		return
+	var from, to string
+	for i := 0; i < len(args)/2; i++ {
+		from = args[i*2]
+		if !validInput(from, minInLength) {
+			fmt.Fprintln(os.Stderr, "Invalid <from> URL, minimum length is 4")
+			os.Exit(2)
+			return
+		}
+
+		to = args[(i*2)+1]
+		if !validInput(to, minOutLength) {
+			fmt.Fprintln(os.Stderr, "Invalid <to>, minimum length is 1")
+			os.Exit(3)
+			return
+		}
+
+		replacements[from] = to
 	}
 
 	var wg sync.WaitGroup
@@ -72,7 +86,7 @@ func main() {
 
 			go func(line string) {
 				defer wg.Done()
-				line = replaceAndFix(line, from, to)
+				line = replaceAndFix(line, replacements)
 				ch <- line
 			}(line)
 		}
@@ -88,23 +102,25 @@ func main() {
 	}
 }
 
-func replaceAndFix(line, from, to string) string {
-	if !strings.Contains(line, from) {
-		return line
-	}
-
-	// Find/replace from->to
-	line = strings.Replace(line, from, to, -1)
-
-	// Fix serialized string lengths
-	line = search.ReplaceAllStringFunc(line, func(match string) string {
-		// Skip fixing if we didn't replace anything
-		if !strings.Contains(match, to) {
-			return match
+func replaceAndFix(line string, replacements map[string]string) string {
+	for from, to := range replacements {
+		if !strings.Contains(line, from) {
+			continue
 		}
 
-		return fix(match)
-	})
+		// Find/replace from->to
+		line = strings.Replace(line, from, to, -1)
+
+		// Fix serialized string lengths
+		line = search.ReplaceAllStringFunc(line, func(match string) string {
+			// Skip fixing if we didn't replace anything
+			if !strings.Contains(match, to) {
+				return match
+			}
+
+			return fix(match)
+		})
+	}
 
 	return line
 }
