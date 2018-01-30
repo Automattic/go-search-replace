@@ -68,6 +68,24 @@ func TestReplace(t *testing.T) {
 			in:  `('s:21:\"http://automattic.com\";'),('s:21:\"https://a8c.com\";')`,
 			out: `('s:22:\"https://automattic.com\";'),('s:21:\"https://a8c.com\";')`,
 		},
+		{
+			testName: "emoji from",
+
+			from: "http://🖖.com",
+			to:   "https://spock.com",
+
+			in:  `s:12:\"http://🖖.com\";`,
+			out: `s:17:\"https://spock.com\";`,
+		},
+		{
+			testName: "emoji to",
+
+			from: "https://spock.com",
+			to:   "http://🖖.com",
+
+			in:  `s:17:\"https://spock.com\";`,
+			out: `s:15:\"http://🖖.com\";`,
+		},
 	}
 
 	for _, test := range tests {
@@ -151,11 +169,6 @@ func TestFix(t *testing.T) {
 			testName: "Escaped URL",
 			from:     `s:0:\"https:\\/\\/automattic.com\";`,
 			to:       `s:24:\"https:\\/\\/automattic.com\";`,
-		},
-		{
-			testName: "Correctly count multibyte characters",
-			from:     `s:0:\"Does it work with emoji? 🙃\";`,
-			to:       `s:29:\"Does it work with emoji? 🙃\";`,
 		},
 		{
 			testName: "Many escaped characters (including escaped backslash)",
