@@ -1,6 +1,6 @@
 # Go Search Replace
 
-[![Build Status](https://travis-ci.com/Automattic/go-search-replace.svg?token=xWx9qCRAJeRdHxEcWW83&branch=master)](https://travis-ci.com/Automattic/go-search-replace)
+[![Build Status](https://travis-ci.org/Automattic/go-search-replace.svg?branch=master)](https://travis-ci.org/Automattic/go-search-replace)
 
 Search & replace URLs in WordPress SQL files.
 
