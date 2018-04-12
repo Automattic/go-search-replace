@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -21,43 +23,56 @@ const (
 )
 
 var (
+	fixOnly bool
+
 	search  = regexp.MustCompile(searchRe)
 	replace = regexp.MustCompile(replaceRe)
 )
 
-func main() {
-	if len(os.Args) < 3 {
-		fmt.Fprintln(os.Stderr, "Usage: search-replace <from> <to>")
-		os.Exit(1)
-		return
+func init() {
+	flag.BoolVar(&fixOnly, "fix-only", false, "Only fix serialized metadata. No search-replace will be performed.")
+}
+
+func validateArgs(args []string) (map[string]string, error) {
+	if len(args) < 3 {
+		return nil, errors.New("Usage: search-replace <from> <to>")
 	}
 
 	replacements := make(map[string]string)
-	args := os.Args[1:]
+	args = args[1:]
 
 	if len(args)%2 > 0 {
-		fmt.Fprintln(os.Stderr, "All replacements must have a <from> and <to> value")
-		os.Exit(1)
-		return
+		return nil, errors.New("All replacements must have a <from> and <to> value")
 	}
 
 	var from, to string
 	for i := 0; i < len(args)/2; i++ {
 		from = args[i*2]
 		if !validInput(from, minInLength) {
-			fmt.Fprintln(os.Stderr, "Invalid <from> URL, minimum length is 4")
-			os.Exit(2)
-			return
+			return nil, errors.New("Invalid <from> URL, minimum length is 4")
 		}
 
 		to = args[(i*2)+1]
 		if !validInput(to, minOutLength) {
-			fmt.Fprintln(os.Stderr, "Invalid <to>, minimum length is 1")
-			os.Exit(3)
-			return
+			return nil, errors.New("Invalid <to>, minimum length is 1")
 		}
 
 		replacements[from] = to
+	}
+
+	return replacements, nil
+}
+
+func main() {
+	var replacements map[string]string
+	var err error
+
+	if !fixOnly {
+		replacements, err = validateArgs(os.Args)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	}
 
 	var wg sync.WaitGroup
@@ -86,7 +101,13 @@ func main() {
 
 			go func(line string) {
 				defer wg.Done()
-				line = replaceAndFix(line, replacements)
+
+				if fixOnly {
+					line = fix(line)
+				} else {
+					line = replaceAndFix(line, replacements)
+				}
+
 				ch <- line
 			}(line)
 		}
