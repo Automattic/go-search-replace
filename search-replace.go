@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -21,43 +22,53 @@ const (
 )
 
 var (
+	fixOnly bool
+
 	search  = regexp.MustCompile(searchRe)
 	replace = regexp.MustCompile(replaceRe)
 )
 
+func init() {
+	flag.BoolVar(&fixOnly, "fix-only", false, "Only fix serialized metadata. No search-replace will be performed.")
+}
+
 func main() {
-	if len(os.Args) < 3 {
-		fmt.Fprintln(os.Stderr, "Usage: search-replace <from> <to>")
-		os.Exit(1)
-		return
-	}
+	var replacements map[string]string
 
-	replacements := make(map[string]string)
-	args := os.Args[1:]
-
-	if len(args)%2 > 0 {
-		fmt.Fprintln(os.Stderr, "All replacements must have a <from> and <to> value")
-		os.Exit(1)
-		return
-	}
-
-	var from, to string
-	for i := 0; i < len(args)/2; i++ {
-		from = args[i*2]
-		if !validInput(from, minInLength) {
-			fmt.Fprintln(os.Stderr, "Invalid <from> URL, minimum length is 4")
-			os.Exit(2)
+	if !fixOnly {
+		if len(os.Args) < 3 {
+			fmt.Fprintln(os.Stderr, "Usage: search-replace <from> <to>")
+			os.Exit(1)
 			return
 		}
 
-		to = args[(i*2)+1]
-		if !validInput(to, minOutLength) {
-			fmt.Fprintln(os.Stderr, "Invalid <to>, minimum length is 1")
-			os.Exit(3)
+		replacements := make(map[string]string)
+		args := os.Args[1:]
+
+		if len(args)%2 > 0 {
+			fmt.Fprintln(os.Stderr, "All replacements must have a <from> and <to> value")
+			os.Exit(1)
 			return
 		}
 
-		replacements[from] = to
+		var from, to string
+		for i := 0; i < len(args)/2; i++ {
+			from = args[i*2]
+			if !validInput(from, minInLength) {
+				fmt.Fprintln(os.Stderr, "Invalid <from> URL, minimum length is 4")
+				os.Exit(2)
+				return
+			}
+
+			to = args[(i*2)+1]
+			if !validInput(to, minOutLength) {
+				fmt.Fprintln(os.Stderr, "Invalid <to>, minimum length is 1")
+				os.Exit(3)
+				return
+			}
+
+			replacements[from] = to
+		}
 	}
 
 	var wg sync.WaitGroup
@@ -86,7 +97,13 @@ func main() {
 
 			go func(line string) {
 				defer wg.Done()
-				line = replaceAndFix(line, replacements)
+
+				if fixOnly {
+					line = fix(line)
+				} else {
+					line = replaceAndFix(line, replacements)
+				}
+
 				ch <- line
 			}(line)
 		}
