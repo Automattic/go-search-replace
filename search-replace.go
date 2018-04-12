@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -32,42 +33,45 @@ func init() {
 	flag.BoolVar(&fixOnly, "fix-only", false, "Only fix serialized metadata. No search-replace will be performed.")
 }
 
+func validateArgs(args []string) (map[string]string, error) {
+	if len(args) < 3 {
+		return nil, errors.New("Usage: search-replace <from> <to>")
+	}
+
+	replacements := make(map[string]string)
+	args = args[1:]
+
+	if len(args)%2 > 0 {
+		return nil, errors.New("All replacements must have a <from> and <to> value")
+	}
+
+	var from, to string
+	for i := 0; i < len(args)/2; i++ {
+		from = args[i*2]
+		if !validInput(from, minInLength) {
+			return nil, errors.New("Invalid <from> URL, minimum length is 4")
+		}
+
+		to = args[(i*2)+1]
+		if !validInput(to, minOutLength) {
+			return nil, errors.New("Invalid <to>, minimum length is 1")
+		}
+
+		replacements[from] = to
+	}
+
+	return replacements, nil
+}
+
 func main() {
 	var replacements map[string]string
+	var err error
 
 	if !fixOnly {
-		if len(os.Args) < 3 {
-			fmt.Fprintln(os.Stderr, "Usage: search-replace <from> <to>")
+		replacements, err = validateArgs(os.Args)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
-			return
-		}
-
-		replacements := make(map[string]string)
-		args := os.Args[1:]
-
-		if len(args)%2 > 0 {
-			fmt.Fprintln(os.Stderr, "All replacements must have a <from> and <to> value")
-			os.Exit(1)
-			return
-		}
-
-		var from, to string
-		for i := 0; i < len(args)/2; i++ {
-			from = args[i*2]
-			if !validInput(from, minInLength) {
-				fmt.Fprintln(os.Stderr, "Invalid <from> URL, minimum length is 4")
-				os.Exit(2)
-				return
-			}
-
-			to = args[(i*2)+1]
-			if !validInput(to, minOutLength) {
-				fmt.Fprintln(os.Stderr, "Invalid <to>, minimum length is 1")
-				os.Exit(3)
-				return
-			}
-
-			replacements[from] = to
 		}
 	}
 
