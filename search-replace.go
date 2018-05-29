@@ -52,7 +52,7 @@ func main() {
 
 		to = args[(i*2)+1]
 		if !validInput(to, minOutLength) {
-			fmt.Fprintln(os.Stderr, "Invalid <to>, minimum length is 1")
+			fmt.Fprintln(os.Stderr, "Invalid <to>, minimum length is 2")
 			os.Exit(3)
 			return
 		}
