@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -18,6 +19,8 @@ const (
 	inputRe      = `^[A-Za-z0-9_\-\.:/]+$`
 	minInLength  = 4
 	minOutLength = 2
+
+	version = "0.0.6-dev"
 )
 
 var (
@@ -26,6 +29,15 @@ var (
 )
 
 func main() {
+	versionFlag := flag.Bool("version", false, "Show version information")
+	flag.Parse()
+
+	if *versionFlag {
+		fmt.Printf("go-search-replace version %s\n", version)
+		os.Exit(0)
+		return
+	}
+
 	if len(os.Args) < 3 {
 		fmt.Fprintln(os.Stderr, "Usage: search-replace <from> <to>")
 		os.Exit(1)
