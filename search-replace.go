@@ -2,12 +2,13 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"regexp"
-	"strings"
+	"strconv"
 	"sync"
 )
 
@@ -30,6 +31,11 @@ var (
 	bad     = regexp.MustCompile(badInputRe)
 )
 
+type Replacement struct {
+	From []byte
+	To   []byte
+}
+
 func main() {
 	versionFlag := flag.Bool("version", false, "Show version information")
 	flag.Parse()
@@ -46,7 +52,7 @@ func main() {
 		return
 	}
 
-	replacements := make(map[string]string)
+	var replacements []*Replacement
 	args := os.Args[1:]
 
 	if len(args)%2 > 0 {
@@ -71,11 +77,14 @@ func main() {
 			return
 		}
 
-		replacements[from] = to
+		replacements = append(replacements, &Replacement{
+			From: []byte(from),
+			To:   []byte(to),
+		})
 	}
 
 	var wg sync.WaitGroup
-	lines := make(chan chan string, 10)
+	lines := make(chan chan []byte, 10)
 
 	wg.Add(1)
 	go func() {
@@ -83,7 +92,7 @@ func main() {
 
 		r := bufio.NewReaderSize(os.Stdin, 2*1024*1024)
 		for {
-			line, err := r.ReadString('\n')
+			line, err := r.ReadBytes('\n')
 
 			if err == io.EOF {
 				break
@@ -95,10 +104,10 @@ func main() {
 			}
 
 			wg.Add(1)
-			ch := make(chan string)
+			ch := make(chan []byte)
 			lines <- ch
 
-			go func(line string) {
+			go func(line []byte) {
 				defer wg.Done()
 				line = replaceAndFix(line, replacements)
 				ch <- line
@@ -116,19 +125,22 @@ func main() {
 	}
 }
 
-func replaceAndFix(line string, replacements map[string]string) string {
-	for from, to := range replacements {
-		if !strings.Contains(line, from) {
+func replaceAndFix(line []byte, replacements []*Replacement) []byte {
+	for _, replacement := range replacements {
+		fromBytes := replacement.From
+		toBytes := replacement.To
+
+		if !bytes.Contains(line, fromBytes) {
 			continue
 		}
 
 		// Find/replace from->to
-		line = strings.Replace(line, from, to, -1)
+		line = bytes.Replace(line, fromBytes, toBytes, -1)
 
 		// Fix serialized string lengths
-		line = search.ReplaceAllStringFunc(line, func(match string) string {
+		line = search.ReplaceAllFunc(line, func(match []byte) []byte {
 			// Skip fixing if we didn't replace anything
-			if !strings.Contains(match, to) {
+			if !bytes.Contains(match, toBytes) {
 				return match
 			}
 
@@ -139,8 +151,8 @@ func replaceAndFix(line string, replacements map[string]string) string {
 	return line
 }
 
-func fix(match string) string {
-	parts := replace.FindStringSubmatch(match)
+func fix(match []byte) []byte {
+	parts := replace.FindSubmatch(match)
 
 	if len(parts) != 2 {
 		// This looks wrong, don't touch anything
@@ -148,8 +160,22 @@ func fix(match string) string {
 	}
 
 	// Get string length - number of escaped characters and avoid double counting escaped \
-	length := len(parts[1]) - (strings.Count(parts[1], `\`) - strings.Count(parts[1], `\\`))
-	return fmt.Sprintf("s:%d:\\\"%s\\\";", length, parts[1])
+	length := strconv.Itoa(len(parts[1]) - (bytes.Count(parts[1], []byte(`\`)) - bytes.Count(parts[1], []byte(`\\`))))
+
+	// Allocate enough memory for the string so appending won't resize it
+	// length of the string +
+	// length of constant characters +
+	// number of digits in the "length" component
+	replaced := make([]byte, 0, len(parts[1])+8+len(length))
+
+	// Build the string
+	replaced = append(replaced, []byte("s:")...)
+	replaced = append(replaced, []byte(length)...)
+	replaced = append(replaced, ':')
+	replaced = append(replaced, []byte("\\\"")...)
+	replaced = append(replaced, parts[1]...)
+	replaced = append(replaced, []byte("\\\";")...)
+	return replaced
 }
 
 func validInput(in string, length int) bool {

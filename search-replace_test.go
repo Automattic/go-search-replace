@@ -1,34 +1,41 @@
 package main
 
 import (
+	"bytes"
 	"testing"
 )
 
 func BenchmarkFix(b *testing.B) {
-	test := `s:0:\"https://automattic.com\";`
+	test := []byte(`s:0:\"https://automattic.com\";`)
 	for i := 0; i < b.N; i++ {
 		fix(test)
 	}
 }
 
 func BenchmarkSimpleReplace(b *testing.B) {
-	line := "http://automattic.com"
-	from := "http:"
-	to := "https:"
+	line := []byte("http://automattic.com")
+	from := []byte("http:")
+	to := []byte("https:")
 	for i := 0; i < b.N; i++ {
-		replaceAndFix(line, map[string]string{
-			from: to,
+		replaceAndFix(line, []*Replacement{
+			&Replacement{
+				From: from,
+				To:   to,
+			},
 		})
 	}
 }
 
 func BenchmarkSerializedReplace(b *testing.B) {
-	line := `s:0:\"http://automattic.com\";`
-	from := "http://automattic.com"
-	to := "https://automattic.com"
+	line := []byte(`s:0:\"http://automattic.com\";`)
+	from := []byte("http://automattic.com")
+	to := []byte("https://automattic.com")
 	for i := 0; i < b.N; i++ {
-		replaceAndFix(line, map[string]string{
-			from: to,
+		replaceAndFix(line, []*Replacement{
+			&Replacement{
+				From: from,
+				To:   to,
+			},
 		})
 	}
 }
@@ -36,66 +43,69 @@ func BenchmarkSerializedReplace(b *testing.B) {
 func TestReplace(t *testing.T) {
 	var tests = []struct {
 		testName string
-		in       string
-		out      string
-		from     string
-		to       string
+		in       []byte
+		out      []byte
+		from     []byte
+		to       []byte
 	}{
 		{
 			testName: "http to https",
 
-			from: "http://automattic.com",
-			to:   "https://automattic.com",
+			from: []byte("http://automattic.com"),
+			to:   []byte("https://automattic.com"),
 
-			in:  `s:21:\"http://automattic.com\";`,
-			out: `s:22:\"https://automattic.com\";`,
+			in:  []byte(`s:21:\"http://automattic.com\";`),
+			out: []byte(`s:22:\"https://automattic.com\";`),
 		},
 		{
 			testName: "URL in SQL",
 
-			from: "http://automattic.com",
-			to:   "https://automattic.com",
+			from: []byte("http://automattic.com"),
+			to:   []byte("https://automattic.com"),
 
-			in:  `('s:21:\"http://automattic.com\";'),('s:21:\"http://automattic.com\";')`,
-			out: `('s:22:\"https://automattic.com\";'),('s:22:\"https://automattic.com\";')`,
+			in:  []byte(`('s:21:\"http://automattic.com\";'),('s:21:\"http://automattic.com\";')`),
+			out: []byte(`('s:22:\"https://automattic.com\";'),('s:22:\"https://automattic.com\";')`),
 		},
 		{
 			testName: "only fix updated strings",
 
-			from: "http://automattic.com",
-			to:   "https://automattic.com",
+			from: []byte("http://automattic.com"),
+			to:   []byte("https://automattic.com"),
 
-			in:  `('s:21:\"http://automattic.com\";'),('s:21:\"https://a8c.com\";')`,
-			out: `('s:22:\"https://automattic.com\";'),('s:21:\"https://a8c.com\";')`,
+			in:  []byte(`('s:21:\"http://automattic.com\";'),('s:21:\"https://a8c.com\";')`),
+			out: []byte(`('s:22:\"https://automattic.com\";'),('s:21:\"https://a8c.com\";')`),
 		},
 		{
 			testName: "emoji from",
 
-			from: "http://🖖.com",
-			to:   "https://spock.com",
+			from: []byte("http://🖖.com"),
+			to:   []byte("https://spock.com"),
 
-			in:  `s:12:\"http://🖖.com\";`,
-			out: `s:17:\"https://spock.com\";`,
+			in:  []byte(`s:12:\"http://🖖.com\";`),
+			out: []byte(`s:17:\"https://spock.com\";`),
 		},
 		{
 			testName: "emoji to",
 
-			from: "https://spock.com",
-			to:   "http://🖖.com",
+			from: []byte("https://spock.com"),
+			to:   []byte("http://🖖.com"),
 
-			in:  `s:17:\"https://spock.com\";`,
-			out: `s:15:\"http://🖖.com\";`,
+			in:  []byte(`s:17:\"https://spock.com\";`),
+			out: []byte(`s:15:\"http://🖖.com\";`),
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			replaced := replaceAndFix(test.in, map[string]string{
-				test.from: test.to,
+			replaced := replaceAndFix(test.in, []*Replacement{
+				&Replacement{
+					From: test.from,
+					To:   test.to,
+				},
 			})
 
-			if replaced != test.out {
-				t.Error("Expected:", test.out, "Actual:", replaced)
+			if !bytes.Equal(replaced, test.out) {
+				t.Error("Expected:", string(test.out), "Actual:", string(replaced))
 			}
 		})
 	}
@@ -104,26 +114,38 @@ func TestReplace(t *testing.T) {
 func TestMultiReplace(t *testing.T) {
 	var tests = []struct {
 		testName     string
-		in           string
-		out          string
-		replacements map[string]string
+		in           []byte
+		out          []byte
+		replacements []*Replacement
 	}{
 		{
 			testName: "simple test",
-			in:       "http://automattic.com",
-			out:      "https://automattic.org",
-			replacements: map[string]string{
-				"http:":          "https:",
-				"automattic.com": "automattic.org",
+			in:       []byte("http://automattic.com"),
+			out:      []byte("https://automattic.org"),
+			replacements: []*Replacement{
+				&Replacement{
+					From: []byte("http:"),
+					To:   []byte("https:"),
+				},
+				&Replacement{
+					From: []byte("automattic.com"),
+					To:   []byte("automattic.org"),
+				},
 			},
 		},
 		{
 			testName: "overlapping",
-			in:       "http://automattic.com",
-			out:      "https://automattic.org",
-			replacements: map[string]string{
-				"http:":            "https:",
-				"//automattic.com": "//automattic.org",
+			in:       []byte("http://automattic.com"),
+			out:      []byte("https://automattic.org"),
+			replacements: []*Replacement{
+				&Replacement{
+					From: []byte("http:"),
+					To:   []byte("https:"),
+				},
+				&Replacement{
+					From: []byte("//automattic.com"),
+					To:   []byte("//automattic.org"),
+				},
 			},
 		},
 	}
@@ -132,8 +154,8 @@ func TestMultiReplace(t *testing.T) {
 		t.Run(test.testName, func(t *testing.T) {
 			replaced := replaceAndFix(test.in, test.replacements)
 
-			if replaced != test.out {
-				t.Error("Expected:", test.out, "Actual:", replaced)
+			if !bytes.Equal(replaced, test.out) {
+				t.Error("Expected:", string(test.out), "Actual:", string(replaced))
 			}
 		})
 	}
@@ -142,46 +164,46 @@ func TestMultiReplace(t *testing.T) {
 func TestFix(t *testing.T) {
 	var tests = []struct {
 		testName string
-		from     string
-		to       string
+		from     []byte
+		to       []byte
 	}{
 		{
 			testName: "Empty string",
-			from:     `s:10:\"\";`,
-			to:       `s:0:\"\";`,
+			from:     []byte(`s:10:\"\";`),
+			to:       []byte(`s:0:\"\";`),
 		},
 		{
 			testName: "Empty string (corrected)",
-			from:     `s:0:\"\";`,
-			to:       `s:0:\"\";`,
+			from:     []byte(`s:0:\"\";`),
+			to:       []byte(`s:0:\"\";`),
 		},
 		{
 			testName: "Empty string (escaped quotes)",
-			from:     `s:0:\"\";`,
-			to:       `s:0:\"\";`,
+			from:     []byte(`s:0:\"\";`),
+			to:       []byte(`s:0:\"\";`),
 		},
 		{
 			testName: "Line break",
-			from:     `s:0:\"line\\nbreak\";`,
-			to:       `s:11:\"line\\nbreak\";`,
+			from:     []byte(`s:0:\"line\\nbreak\";`),
+			to:       []byte(`s:11:\"line\\nbreak\";`),
 		},
 		{
 			testName: "Escaped URL",
-			from:     `s:0:\"https:\\/\\/automattic.com\";`,
-			to:       `s:24:\"https:\\/\\/automattic.com\";`,
+			from:     []byte(`s:0:\"https:\\/\\/automattic.com\";`),
+			to:       []byte(`s:24:\"https:\\/\\/automattic.com\";`),
 		},
 		{
 			testName: "Many escaped characters (including escaped backslash)",
-			from:     `s:0:\"\t\r\n \t\r\n \t\r\n \\ <a href=\"https://example.com\">Many\tescaped\tcharacters</a>\";`,
-			to:       `s:71:\"\t\r\n \t\r\n \t\r\n \\ <a href=\"https://example.com\">Many\tescaped\tcharacters</a>\";`,
+			from:     []byte(`s:0:\"\t\r\n \t\r\n \t\r\n \\ <a href=\"https://example.com\">Many\tescaped\tcharacters</a>\";`),
+			to:       []byte(`s:71:\"\t\r\n \t\r\n \t\r\n \\ <a href=\"https://example.com\">Many\tescaped\tcharacters</a>\";`),
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
 			fixed := fix(test.from)
-			if fixed != test.to {
-				t.Error("Expected:", test.to, "Actual:", fixed)
+			if !bytes.Equal(fixed, test.to) {
+				t.Error("Expected:", string(test.to), "Actual:", string(fixed))
 			}
 		})
 	}
