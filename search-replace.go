@@ -26,6 +26,8 @@ const (
 var (
 	search  = regexp.MustCompile(searchRe)
 	replace = regexp.MustCompile(replaceRe)
+	input   = regexp.MustCompile(inputRe)
+	bad     = regexp.MustCompile(badInputRe)
 )
 
 func main() {
@@ -155,12 +157,10 @@ func validInput(in string, length int) bool {
 		return false
 	}
 
-	input := regexp.MustCompile(inputRe)
 	if !input.MatchString(in) {
 		return false
 	}
 
-	bad := regexp.MustCompile(badInputRe)
 	if bad.MatchString(in) {
 		return false
 	}
