@@ -8,7 +8,7 @@ import (
 func BenchmarkFix(b *testing.B) {
 	test := []byte(`s:0:\"https://automattic.com\";`)
 	for i := 0; i < b.N; i++ {
-		fix(test)
+		fix(&test)
 	}
 }
 
@@ -17,7 +17,7 @@ func BenchmarkSimpleReplace(b *testing.B) {
 	from := []byte("http:")
 	to := []byte("https:")
 	for i := 0; i < b.N; i++ {
-		replaceAndFix(line, []*Replacement{
+		replaceAndFix(&line, []*Replacement{
 			&Replacement{
 				From: from,
 				To:   to,
@@ -31,7 +31,7 @@ func BenchmarkSerializedReplace(b *testing.B) {
 	from := []byte("http://automattic.com")
 	to := []byte("https://automattic.com")
 	for i := 0; i < b.N; i++ {
-		replaceAndFix(line, []*Replacement{
+		replaceAndFix(&line, []*Replacement{
 			&Replacement{
 				From: from,
 				To:   to,
@@ -97,15 +97,15 @@ func TestReplace(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			replaced := replaceAndFix(test.in, []*Replacement{
+			replaced := replaceAndFix(&test.in, []*Replacement{
 				&Replacement{
 					From: test.from,
 					To:   test.to,
 				},
 			})
 
-			if !bytes.Equal(replaced, test.out) {
-				t.Error("Expected:", string(test.out), "Actual:", string(replaced))
+			if !bytes.Equal(*replaced, test.out) {
+				t.Error("Expected:", string(test.out), "Actual:", string(*replaced))
 			}
 		})
 	}
@@ -152,10 +152,10 @@ func TestMultiReplace(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			replaced := replaceAndFix(test.in, test.replacements)
+			replaced := replaceAndFix(&test.in, test.replacements)
 
-			if !bytes.Equal(replaced, test.out) {
-				t.Error("Expected:", string(test.out), "Actual:", string(replaced))
+			if !bytes.Equal(*replaced, test.out) {
+				t.Error("Expected:", string(test.out), "Actual:", string(*replaced))
 			}
 		})
 	}
@@ -201,7 +201,7 @@ func TestFix(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			fixed := fix(test.from)
+			fixed := fix(&test.from)
 			if !bytes.Equal(fixed, test.to) {
 				t.Error("Expected:", string(test.to), "Actual:", string(fixed))
 			}

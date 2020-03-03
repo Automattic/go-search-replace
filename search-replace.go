@@ -108,11 +108,11 @@ func main() {
 			ch := make(chan []byte)
 			lines <- ch
 
-			go func(line []byte) {
+			go func(line *[]byte) {
 				defer wg.Done()
 				line = replaceAndFix(line, replacements)
-				ch <- line
-			}(line)
+				ch <- *line
+			}(&line)
 		}
 	}()
 
@@ -126,35 +126,35 @@ func main() {
 	}
 }
 
-func replaceAndFix(line []byte, replacements []*Replacement) []byte {
+func replaceAndFix(line *[]byte, replacements []*Replacement) *[]byte {
 	for _, replacement := range replacements {
-		if !bytes.Contains(line, replacement.From) {
+		if !bytes.Contains(*line, replacement.From) {
 			continue
 		}
 
 		// Find/replace from->to
-		line = bytes.Replace(line, replacement.From, replacement.To, -1)
+		*line = bytes.Replace(*line, replacement.From, replacement.To, -1)
 
 		// Fix serialized string lengths
-		line = search.ReplaceAllFunc(line, func(match []byte) []byte {
+		*line = search.ReplaceAllFunc(*line, func(match []byte) []byte {
 			// Skip fixing if we didn't replace anything
 			if !bytes.Contains(match, replacement.To) {
 				return match
 			}
 
-			return fix(match)
+			return fix(&match)
 		})
 	}
 
 	return line
 }
 
-func fix(match []byte) []byte {
-	parts := replace.FindSubmatch(match)
+func fix(match *[]byte) []byte {
+	parts := replace.FindSubmatch(*match)
 
 	if len(parts) != 2 {
 		// This looks wrong, don't touch anything
-		return match
+		return *match
 	}
 
 	// Get string length - number of escaped characters and avoid double counting escaped \
