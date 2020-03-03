@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"sync"
+	"unsafe"
 )
 
 const (
@@ -121,7 +122,7 @@ func main() {
 	}()
 
 	for line := range lines {
-		fmt.Print(<-line)
+		fmt.Print(unsafeGetString(<-line))
 	}
 }
 
@@ -192,4 +193,8 @@ func validInput(in string, length int) bool {
 	}
 
 	return true
+}
+
+func unsafeGetString(bs []byte) string {
+	return *(*string)(unsafe.Pointer(&bs))
 }
