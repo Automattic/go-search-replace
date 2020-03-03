@@ -128,20 +128,17 @@ func main() {
 
 func replaceAndFix(line []byte, replacements []*Replacement) []byte {
 	for _, replacement := range replacements {
-		fromBytes := replacement.From
-		toBytes := replacement.To
-
-		if !bytes.Contains(line, fromBytes) {
+		if !bytes.Contains(line, replacement.From) {
 			continue
 		}
 
 		// Find/replace from->to
-		line = bytes.Replace(line, fromBytes, toBytes, -1)
+		line = bytes.Replace(line, replacement.From, replacement.To, -1)
 
 		// Fix serialized string lengths
 		line = search.ReplaceAllFunc(line, func(match []byte) []byte {
 			// Skip fixing if we didn't replace anything
-			if !bytes.Contains(match, toBytes) {
+			if !bytes.Contains(match, replacement.To) {
 				return match
 			}
 
