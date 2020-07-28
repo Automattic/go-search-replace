@@ -25,3 +25,22 @@ reason, we're limiting the search domain to roughly include characters that can
 be used in domain names. Since the most common usage for search-replace is
 changing domain names or switching http: to https:, this is an easy way to avoid
 otherwise complex issues.
+
+## Installation
+
+This package requires [Go](https://golang.org/). An easy way to install Go on a Mac is with [Homebrew](https://medium.com/@jimkang/install-go-on-mac-with-homebrew-5fa421fc55f5).
+
+Note the changes you need to make to your PATH and that you have to either restart your terminal or `source` your shell rc file.
+
+You need to install Gox which you can install with
+`go get github.com/mitchellh/gox`
+
+Once that's installed you can install this tool with the following command:
+`go get github.com/Automattic/go-search-replace`
+
+Go is set up by convention, not configuration so your files likely live in a directory like: /Users/user/go/src/github.com/Automattic/go-search-replace
+
+Nagivage to that directory and run
+`make`
+
+`go-search-replace` will be ready for you to use. Once built you won't have to complete any of the above steps again.
