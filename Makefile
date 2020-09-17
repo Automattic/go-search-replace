@@ -1,9 +1,10 @@
 BINARY = go-search-replace
 BUILDDIR = ./build
 
-all: clean vet fmt lint test build
+all: vet fmt lint test build
 
-build:
+build: clean
+	which gox > /dev/null || go get -u github.com/mitchellh/gox
 	gox -os="linux" -os="darwin" -os="windows" -arch="amd64" -arch="386" -output="${BUILDDIR}/${BINARY}_{{.OS}}_{{.Arch}}"
 	gzip build/*
 
