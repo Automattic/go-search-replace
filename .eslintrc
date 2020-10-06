@@ -1,0 +1,10 @@
+{
+  "extends": "wpvip",
+  "env": {
+    "jest/globals": true
+  },
+  "plugins": ["jest"],
+  "rules": {
+    "no-console": "off"
+  }
+}

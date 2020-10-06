@@ -1,0 +1,55 @@
+{
+  "name": "@automattic/go-search-replace",
+  "version": "0.0.0",
+  "description": "Search & replace URLs in WordPress SQL files",
+  "main": "lib/index.js",
+  "scripts": {
+    "lint": "eslint .",
+    "pretest": "npm run lint",
+    "test": "jest --silent",
+    "posttest": "nlm verify"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Automattic/go-search-replace.git"
+  },
+  "author": {
+    "name": "WordPress VIP",
+    "email": "wpvip@automattic.com"
+  },
+  "license": "BSD-3-Clause",
+  "bugs": {
+    "url": "https://github.com/Automattic/go-search-replace/issues"
+  },
+  "homepage": "https://github.com/Automattic/go-search-replace#readme",
+  "devDependencies": {
+    "babel-eslint": "^10.1.0",
+    "eslint": "^4.19.1",
+    "eslint-config-wpvip": "github:automattic/eslint-config-wpvip#6b5993b",
+    "eslint-plugin-flowtype": "^3.13.0",
+    "eslint-plugin-import": "^2.22.1",
+    "eslint-plugin-jest": "^24.0.2",
+    "eslint-plugin-json": "^1.4.0",
+    "eslint-plugin-jsx-a11y": "^6.3.1",
+    "eslint-plugin-no-async-foreach": "^0.1.1",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-react": "^7.21.3",
+    "eslint-plugin-wpcalypso": "^4.1.0",
+    "jest": "^26.4.2",
+    "nlm": "^5.0.0"
+  },
+  "nlm": {
+    "license": {
+      "files": [
+        "lib",
+        "test"
+      ]
+    }
+  },
+  "files": [
+    "lib"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  }
+}
