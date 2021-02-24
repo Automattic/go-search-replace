@@ -32,6 +32,7 @@ var (
 	bad     = regexp.MustCompile(badInputRe)
 )
 
+// Replacement has two fields (both byte slices): "From" & "To"
 type Replacement struct {
 	From []byte
 	To   []byte

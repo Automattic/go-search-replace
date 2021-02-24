@@ -18,7 +18,7 @@ func BenchmarkSimpleReplace(b *testing.B) {
 	to := []byte("https:")
 	for i := 0; i < b.N; i++ {
 		replaceAndFix(&line, []*Replacement{
-			&Replacement{
+			{
 				From: from,
 				To:   to,
 			},
@@ -32,7 +32,7 @@ func BenchmarkSerializedReplace(b *testing.B) {
 	to := []byte("https://automattic.com")
 	for i := 0; i < b.N; i++ {
 		replaceAndFix(&line, []*Replacement{
-			&Replacement{
+			{
 				From: from,
 				To:   to,
 			},
@@ -98,7 +98,7 @@ func TestReplace(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
 			replaced := replaceAndFix(&test.in, []*Replacement{
-				&Replacement{
+				{
 					From: test.from,
 					To:   test.to,
 				},
@@ -123,11 +123,11 @@ func TestMultiReplace(t *testing.T) {
 			in:       []byte("http://automattic.com"),
 			out:      []byte("https://automattic.org"),
 			replacements: []*Replacement{
-				&Replacement{
+				{
 					From: []byte("http:"),
 					To:   []byte("https:"),
 				},
-				&Replacement{
+				{
 					From: []byte("automattic.com"),
 					To:   []byte("automattic.org"),
 				},
@@ -138,11 +138,11 @@ func TestMultiReplace(t *testing.T) {
 			in:       []byte("http://automattic.com"),
 			out:      []byte("https://automattic.org"),
 			replacements: []*Replacement{
-				&Replacement{
+				{
 					From: []byte("http:"),
 					To:   []byte("https:"),
 				},
-				&Replacement{
+				{
 					From: []byte("//automattic.com"),
 					To:   []byte("//automattic.org"),
 				},
