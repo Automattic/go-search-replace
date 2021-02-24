@@ -5,7 +5,8 @@ all: vet fmt lint test build
 
 build: clean
 	which gox > /dev/null || go get -u github.com/mitchellh/gox
-	gox -os="linux" -os="darwin" -os="windows" -arch="amd64" -arch="386" -arch="arm64" -output="${BUILDDIR}/${BINARY}_{{.OS}}_{{.Arch}}"
+	gox -os="linux" -os="windows" -arch="amd64" -arch="386" -output="${BUILDDIR}/${BINARY}_{{.OS}}_{{.Arch}}"
+	gox -os="darwin" -arch="amd64" -arch="arm64" -output="${BUILDDIR}/${BINARY}_{{.OS}}_{{.Arch}}"
 	gzip build/*
 
 vet:
