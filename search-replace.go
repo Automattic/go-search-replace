@@ -97,10 +97,10 @@ func main() {
 			line, err := r.ReadBytes('\n')
 
 			if err == io.EOF {
-				break
-			}
-
-			if err != nil {
+				if 0 == len(line) {
+					break
+				}
+			} else if err != nil {
 				fmt.Fprintln(os.Stderr, err.Error())
 				break
 			}
