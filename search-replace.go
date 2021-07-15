@@ -96,13 +96,15 @@ func main() {
 		for {
 			line, err := r.ReadBytes('\n')
 
-			if err == io.EOF {
-				if 0 == len(line) {
+			if err != nil {
+				if err == io.EOF {
+					if 0 == len(line) {
+						break
+					}
+				} else {
+					fmt.Fprintln(os.Stderr, err.Error())
 					break
 				}
-			} else if err != nil {
-				fmt.Fprintln(os.Stderr, err.Error())
-				break
 			}
 
 			wg.Add(1)
