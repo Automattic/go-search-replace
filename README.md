@@ -33,10 +33,10 @@ This package requires [Go](https://golang.org/). An easy way to install Go on a 
 Note the changes you need to make to your PATH and that you have to either restart your terminal or `source` your shell rc file.
 
 You need to install Gox which you can install with
-`go get github.com/mitchellh/gox`
+`go install github.com/mitchellh/gox@latest`
 
 Once that's installed you can install this tool with the following command:
-`go get github.com/Automattic/go-search-replace`
+`go install github.com/Automattic/go-search-replace@latest`
 
 Go is set up by convention, not configuration so your files likely live in a directory like: /Users/user/go/src/github.com/Automattic/go-search-replace
 
