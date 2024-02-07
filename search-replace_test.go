@@ -81,7 +81,7 @@ func TestReplace(t *testing.T) {
 			from: []byte("http://🖖.com"),
 			to:   []byte("https://spock.com"),
 
-			in:  []byte(`s:12:\"http://🖖.com\";`),
+			in:  []byte(`s:15:\"http://🖖.com\";`),
 			out: []byte(`s:17:\"https://spock.com\";`),
 		},
 		{
@@ -92,6 +92,24 @@ func TestReplace(t *testing.T) {
 
 			in:  []byte(`s:17:\"https://spock.com\";`),
 			out: []byte(`s:15:\"http://🖖.com\";`),
+		},
+		{
+			testName: "search and replace with different lengths",
+
+			from: []byte("hello"),
+			to:   []byte("goodbye"),
+
+			in:  []byte(`s:11:\"hello-world\";`),
+			out: []byte(`s:13:\"goodbye-world\";`),
+		},
+		{
+			testName: "search and replace with different lengths",
+
+			from: []byte("bbbbbbbbbb"),
+			to:   []byte("ccccccccccccccc"),
+
+			in:  []byte(`s:20:\"aaaaabbbbbbbbbbaaaaa\";`),
+			out: []byte(`s:25:\"aaaaacccccccccccccccaaaaa\";`),
 		},
 	}
 
