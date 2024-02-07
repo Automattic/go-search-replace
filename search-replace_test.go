@@ -12,7 +12,35 @@ func BenchmarkFix(b *testing.B) {
 	}
 }
 
-func BenchmarkSimpleReplace(b *testing.B) {
+func BenchmarkNoReplaceOld(b *testing.B) {
+	line := []byte("http://automattic.com")
+	from := []byte("bananas")
+	to := []byte("apples")
+	for i := 0; i < b.N; i++ {
+		replaceAndFix(&line, []*Replacement{
+			{
+				From: from,
+				To:   to,
+			},
+		})
+	}
+}
+
+func BenchmarkNoReplaceNew(b *testing.B) {
+	line := []byte("http://automattic.com")
+	from := []byte("bananas")
+	to := []byte("apples")
+	for i := 0; i < b.N; i++ {
+		fixLine(&line, []*Replacement{
+			{
+				From: from,
+				To:   to,
+			},
+		})
+	}
+}
+
+func BenchmarkSimpleReplaceOld(b *testing.B) {
 	line := []byte("http://automattic.com")
 	from := []byte("http:")
 	to := []byte("https:")
@@ -26,12 +54,40 @@ func BenchmarkSimpleReplace(b *testing.B) {
 	}
 }
 
-func BenchmarkSerializedReplace(b *testing.B) {
+func BenchmarkSimpleReplaceNew(b *testing.B) {
+	line := []byte("http://automattic.com")
+	from := []byte("http:")
+	to := []byte("https:")
+	for i := 0; i < b.N; i++ {
+		fixLine(&line, []*Replacement{
+			{
+				From: from,
+				To:   to,
+			},
+		})
+	}
+}
+
+func BenchmarkSerializedReplaceOld(b *testing.B) {
 	line := []byte(`s:0:\"http://automattic.com\";`)
 	from := []byte("http://automattic.com")
 	to := []byte("https://automattic.com")
 	for i := 0; i < b.N; i++ {
 		replaceAndFix(&line, []*Replacement{
+			{
+				From: from,
+				To:   to,
+			},
+		})
+	}
+}
+
+func BenchmarkSerializedReplaceNew(b *testing.B) {
+	line := []byte(`s:0:\"http://automattic.com\";`)
+	from := []byte("http://automattic.com")
+	to := []byte("https://automattic.com")
+	for i := 0; i < b.N; i++ {
+		fixLine(&line, []*Replacement{
 			{
 				From: from,
 				To:   to,
@@ -115,7 +171,7 @@ func TestReplace(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			replaced := replaceAndFix(&test.in, []*Replacement{
+			replaced := fixLine(&test.in, []*Replacement{
 				{
 					From: test.from,
 					To:   test.to,

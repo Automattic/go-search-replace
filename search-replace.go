@@ -113,7 +113,7 @@ func main() {
 
 			go func(line *[]byte) {
 				defer wg.Done()
-				line = replaceAndFix(line, replacements)
+				line = fixLine(line, replacements)
 				ch <- *line
 			}(&line)
 		}
@@ -127,6 +127,92 @@ func main() {
 	for line := range lines {
 		fmt.Print(unsafeGetString(<-line))
 	}
+}
+
+var debugMode = false
+
+func Debugf(format string, args ...interface{}) {
+    if debugMode {
+        fmt.Printf(format, args...)
+    }
+}
+
+func fixLine(line *[]byte, replacements []*Replacement) *[]byte {
+	serializedStringRegexp := regexp.MustCompile(`s:(\d+):\\"`)
+
+	//if !bytes.Contains(*line, []byte("s:")) {
+	//	return line
+	//}
+
+	startIndex := 0
+	for startIndex < len(*line) {
+		Debugf("Start of loop, startIndex: %d\n", startIndex)
+		match := serializedStringRegexp.FindSubmatchIndex((*line)[startIndex:])
+		if match == nil {
+			break
+		}
+
+		length, err := strconv.Atoi(string((*line)[startIndex+match[2] : startIndex+match[3]]))
+		if err != nil {
+			startIndex++
+			continue
+		}
+		Debugf("Match found, length: %d\n", length)
+
+		contentStart := startIndex + match[1]
+		contentEnd := contentStart + length
+
+		Debugf("Content boundaries, start: %d, end: %d\n", contentStart, contentEnd)
+
+		serializedContent := (*line)[contentStart:contentEnd]
+		Debugf("Content before: %s\n", serializedContent)
+		updatedContent := replaceInSerializedBytes(serializedContent, replacements)
+		Debugf("Content after: %s\n\n", updatedContent)
+
+		// no change, move to the next one
+		if bytes.Equal(serializedContent, updatedContent) {
+			startIndex = contentEnd + len(`\";`)
+			Debugf("No replacements made; skipping to %d: %s\n", startIndex, updatedContent)
+			// TODO: fix
+			continue
+		}
+
+		// Calculate the new length and update the serialized length prefix
+		newLength := len(updatedContent)
+		newLengthStr := []byte(strconv.Itoa(newLength))
+		Debugf("Replaced content new length: %d\n", newLength)
+		*line = append((*line)[:startIndex+match[2]], append(newLengthStr, (*line)[startIndex+match[3]:]...)...)
+		Debugf("After updating length prefix: %s\n", string(*line))
+
+		// Update the serialized content inline
+
+		//contentEnd = contentStart + newLength // adjust the end index based on the new length -- THIS BREAKS THINGS
+
+		*line = append((*line)[:contentStart], append(updatedContent, (*line)[contentEnd:]...)...)
+		Debugf("After updating content: %s\n", string(*line))
+
+		// Adjust startIndex for the next iteration
+		startIndex += match[1] + newLength + len(newLengthStr) - len((*line)[startIndex+match[2]:startIndex+match[3]])
+		Debugf("New startIndex: %d\n", startIndex)
+	}
+
+	Debugf("Doing global replacements: %s\n", string(*line))
+	// Catch anything left
+	for _, replacement := range replacements {
+		*line = bytes.ReplaceAll(*line, replacement.From, replacement.To)
+		Debugf("After global replacement (from: %s | to: %s): %s\n", replacement.From, replacement.To, string(*line))
+	}
+
+	Debugf("All done: %s\n", string(*line))
+
+	return line
+}
+
+func replaceInSerializedBytes(serialized []byte, replacements []*Replacement) []byte {
+	for _, replacement := range replacements {
+		serialized = bytes.ReplaceAll(serialized, replacement.From, replacement.To)
+	}
+	return serialized
 }
 
 func replaceAndFix(line *[]byte, replacements []*Replacement) *[]byte {
