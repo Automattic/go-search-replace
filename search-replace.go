@@ -132,22 +132,36 @@ func main() {
 var debugMode = false
 
 func Debugf(format string, args ...interface{}) {
-    if debugMode {
-        fmt.Printf(format, args...)
-    }
+	return
+	if debugMode {
+		fmt.Printf(format, args...)
+	}
 }
 
 func fixLine(line *[]byte, replacements []*Replacement) *[]byte {
-	serializedStringRegexp := regexp.MustCompile(`s:(\d+):\\"`)
+	if bytes.Contains(*line, []byte("s:")) {
+		line = fixSerializedContent(line, replacements)
+	}
 
-	//if !bytes.Contains(*line, []byte("s:")) {
-	//	return line
-	//}
+	Debugf("Doing global replacements: %s\n", string(*line))
+	// Catch anything left
+	for _, replacement := range replacements {
+		*line = bytes.ReplaceAll(*line, replacement.From, replacement.To)
+		Debugf("After global replacement (from: %s | to: %s): %s\n", replacement.From, replacement.To, string(*line))
+	}
 
+	Debugf("All done: %s\n", string(*line))
+
+	return line
+}
+
+var serializedStringPrefixRegexp = regexp.MustCompile(`s:(\d+):\\"`)
+
+func fixSerializedContent(line *[]byte, replacements []*Replacement) *[]byte {
 	startIndex := 0
 	for startIndex < len(*line) {
 		Debugf("Start of loop, startIndex: %d\n", startIndex)
-		match := serializedStringRegexp.FindSubmatchIndex((*line)[startIndex:])
+		match := serializedStringPrefixRegexp.FindSubmatchIndex((*line)[startIndex:])
 		if match == nil {
 			break
 		}
@@ -161,6 +175,8 @@ func fixLine(line *[]byte, replacements []*Replacement) *[]byte {
 
 		contentStart := startIndex + match[1]
 		contentEnd := contentStart + length
+
+		// TODO: check if the next three letters are \"; to catch broken serialized content. If not, skip this section.
 
 		Debugf("Content boundaries, start: %d, end: %d\n", contentStart, contentEnd)
 
@@ -195,15 +211,6 @@ func fixLine(line *[]byte, replacements []*Replacement) *[]byte {
 		startIndex += match[1] + newLength + len(newLengthStr) - len((*line)[startIndex+match[2]:startIndex+match[3]])
 		Debugf("New startIndex: %d\n", startIndex)
 	}
-
-	Debugf("Doing global replacements: %s\n", string(*line))
-	// Catch anything left
-	for _, replacement := range replacements {
-		*line = bytes.ReplaceAll(*line, replacement.From, replacement.To)
-		Debugf("After global replacement (from: %s | to: %s): %s\n", replacement.From, replacement.To, string(*line))
-	}
-
-	Debugf("All done: %s\n", string(*line))
 
 	return line
 }
