@@ -3,6 +3,8 @@ BUILDDIR = ./build
 
 all: vet fmt lint test build
 
+ci: clean vet lint test
+
 build: clean
 	which gox > /dev/null || go get -u github.com/mitchellh/gox
 	gox -os="darwin" -os="linux" -os="windows" -arch="amd64" -arch="arm64" -osarch="linux/386" -osarch="windows/386" -output="${BUILDDIR}/${BINARY}_{{.OS}}_{{.Arch}}"
