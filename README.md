@@ -28,7 +28,21 @@ otherwise complex issues.
 
 ## Installation
 
-This package requires [Go](https://golang.org/). An easy way to install Go on a Mac is with [Homebrew](https://medium.com/@jimkang/install-go-on-mac-with-homebrew-5fa421fc55f5).
+### From Official Releases
+
+To install on macOS:
+
+```
+wget https://github.com/Automattic/go-search-replace/releases/latest/download/go-search-replace_darwin_arm64.gz
+gunzip go-search-replace_darwin_arm64.gz
+chmod +x go-search-replace_darwin_arm64
+mv go-search-replace_darwin_arm64 /usr/local/bin/go-search-replace
+go-search-replace --version
+```
+
+### From Source
+
+To install from source, this package requires [Go](https://golang.org/).
 
 Note the changes you need to make to your PATH and that you have to either restart your terminal or `source` your shell rc file.
 
