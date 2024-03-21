@@ -21,6 +21,9 @@ test:
 	go test -v ./...
 	go test -bench .
 
+bench:
+	go test -bench .
+
 clean:
 	rm -rf ${BUILDDIR}
 

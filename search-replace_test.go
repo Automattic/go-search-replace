@@ -12,7 +12,35 @@ func BenchmarkFix(b *testing.B) {
 	}
 }
 
-func BenchmarkSimpleReplace(b *testing.B) {
+func BenchmarkNoReplaceOld(b *testing.B) {
+	line := []byte("http://automattic.com")
+	from := []byte("bananas")
+	to := []byte("apples")
+	for i := 0; i < b.N; i++ {
+		replaceAndFix(&line, []*Replacement{
+			{
+				From: from,
+				To:   to,
+			},
+		})
+	}
+}
+
+func BenchmarkNoReplaceNew(b *testing.B) {
+	line := []byte("http://automattic.com")
+	from := []byte("bananas")
+	to := []byte("apples")
+	for i := 0; i < b.N; i++ {
+		fixLine(&line, []*Replacement{
+			{
+				From: from,
+				To:   to,
+			},
+		})
+	}
+}
+
+func BenchmarkSimpleReplaceOld(b *testing.B) {
 	line := []byte("http://automattic.com")
 	from := []byte("http:")
 	to := []byte("https:")
@@ -26,12 +54,40 @@ func BenchmarkSimpleReplace(b *testing.B) {
 	}
 }
 
-func BenchmarkSerializedReplace(b *testing.B) {
+func BenchmarkSimpleReplaceNew(b *testing.B) {
+	line := []byte("http://automattic.com")
+	from := []byte("http:")
+	to := []byte("https:")
+	for i := 0; i < b.N; i++ {
+		fixLine(&line, []*Replacement{
+			{
+				From: from,
+				To:   to,
+			},
+		})
+	}
+}
+
+func BenchmarkSerializedReplaceOld(b *testing.B) {
 	line := []byte(`s:0:\"http://automattic.com\";`)
 	from := []byte("http://automattic.com")
 	to := []byte("https://automattic.com")
 	for i := 0; i < b.N; i++ {
 		replaceAndFix(&line, []*Replacement{
+			{
+				From: from,
+				To:   to,
+			},
+		})
+	}
+}
+
+func BenchmarkSerializedReplaceNew(b *testing.B) {
+	line := []byte(`s:0:\"http://automattic.com\";`)
+	from := []byte("http://automattic.com")
+	to := []byte("https://automattic.com")
+	for i := 0; i < b.N; i++ {
+		fixLine(&line, []*Replacement{
 			{
 				From: from,
 				To:   to,
@@ -81,7 +137,7 @@ func TestReplace(t *testing.T) {
 			from: []byte("http://🖖.com"),
 			to:   []byte("https://spock.com"),
 
-			in:  []byte(`s:12:\"http://🖖.com\";`),
+			in:  []byte(`s:15:\"http://🖖.com\";`),
 			out: []byte(`s:17:\"https://spock.com\";`),
 		},
 		{
@@ -93,11 +149,29 @@ func TestReplace(t *testing.T) {
 			in:  []byte(`s:17:\"https://spock.com\";`),
 			out: []byte(`s:15:\"http://🖖.com\";`),
 		},
+		{
+			testName: "search and replace with different lengths",
+
+			from: []byte("hello"),
+			to:   []byte("goodbye"),
+
+			in:  []byte(`s:11:\"hello-world\";`),
+			out: []byte(`s:13:\"goodbye-world\";`),
+		},
+		{
+			testName: "search and replace with different lengths",
+
+			from: []byte("bbbbbbbbbb"),
+			to:   []byte("ccccccccccccccc"),
+
+			in:  []byte(`s:20:\"aaaaabbbbbbbbbbaaaaa\";`),
+			out: []byte(`s:25:\"aaaaacccccccccccccccaaaaa\";`),
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			replaced := replaceAndFix(&test.in, []*Replacement{
+			replaced := fixLine(&test.in, []*Replacement{
 				{
 					From: test.from,
 					To:   test.to,
