@@ -131,6 +131,20 @@ func TestReplace(t *testing.T) {
 			in:  []byte(`('s:21:\"http://automattic.com\";'),('s:21:\"https://a8c.com\";')`),
 			out: []byte(`('s:22:\"https://automattic.com\";'),('s:21:\"https://a8c.com\";')`),
 		},
+		//TODO: Test disabled. This is a really hard problem to solve.
+		// Generally recovering from a 'syntax error' of a parser - which is what we have here, due to the wrong byte size for a8c.com,
+		// is probably impossible. It destroys all offsets and suddenly we lose track of where the tokenization is at.
+		// Self-recovery is prone to error, and might grab the token entrance at the wrong place.
+		// Also, the PHP version of search and replace does not support this either.
+		//{
+		//	testName: "only fix updated strings, with bad data in between",
+		//
+		//	from: []byte("http://automattic.com"),
+		//	to:   []byte("https://automattic.com"),
+		//
+		//	in:  []byte(`('s:21:\"http://automattic.com\";'),('s:21:\"https://a8c.com\";'),('s:21:\"http://automattic.com\";')`),
+		//	out: []byte(`('s:22:\"https://automattic.com\";'),('s:21:\"https://a8c.com\";'),('s:22:\"https://automattic.com\";')`),
+		//},
 		{
 			testName: "emoji from",
 
@@ -157,6 +171,21 @@ func TestReplace(t *testing.T) {
 
 			in:  []byte(`s:11:\"hello-world\";`),
 			out: []byte(`s:13:\"goodbye-world\";`),
+		},
+		{
+			testName: "string encoded by both MySQL and PHP",
+
+			from: []byte(`http:\\/\\/example\\.com`),
+			to:   []byte(`http:\\/\\/example2\\.com`),
+			in:   []byte(`s:37:\"\\s=\\shttp_get\\(\'http:\\/\\/example\\.com\";`),
+			out:  []byte(`s:38:\"\\s=\\shttp_get\\(\'http:\\/\\/example2\\.com\";`),
+		},
+		{
+			testName: "lots of encoding",
+			from:     []byte(`\\c\\d\\e`),
+			to:       []byte(`\\x`),
+			in:       []byte(`s:18:\"\\a\\b\\c\\d\\e\\f\\g\\h\";\";`),
+			out:      []byte(`s:14:\"\\a\\b\\x\\f\\g\\h\";\";`),
 		},
 		{
 			testName: "search and replace with different lengths",

@@ -96,6 +96,18 @@ func TestSerializedReplaceWithCss(t *testing.T) {
 	doMainTest(t, input, expected, mainArgs)
 }
 
+func TestComplexSerializedReplace(t *testing.T) {
+	mainArgs := []string{
+		`http:\\/\\/example\\.com`,
+		`http:\\/\\/example2\\.com`,
+	}
+
+	input := `s:37:\"\\s=\\shttp_get\\(\'http:\\/\\/example\\.com\";`
+	expected := `s:38:\"\\s=\\shttp_get\\(\'http:\\/\\/example2\\.com\";`
+
+	doMainTest(t, input, expected, mainArgs)
+}
+
 func TestSerializedReplaceWithCssAndUnrelatedSerializationMarker(t *testing.T) {
 	mainArgs := []string{
 		"https://uss-enterprise.com",
