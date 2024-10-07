@@ -91,20 +91,8 @@ func TestSerializedReplaceWithCss(t *testing.T) {
 		"https://ncc-1701-d.space",
 	}
 
-	input := `a:2:{s:3:\"key\";s:5:\"value\";s:3:\"css\";s:216:\"body { color: #123456;\r\nborder-bottom: none; }\r\ndiv.bg { background: url('https://uss-enterprise.com/wp-content/uploads/main-bg.gif');\r\n  background-position: left center;\r\n    background-repeat: no-repeat; }\";}`
-	expected := `a:2:{s:3:\"key\";s:5:\"value\";s:3:\"css\";s:214:\"body { color: #123456;\r\nborder-bottom: none; }\r\ndiv.bg { background: url('https://ncc-1701-d.space/wp-content/uploads/main-bg.gif');\r\n  background-position: left center;\r\n    background-repeat: no-repeat; }\";}`
-	doMainTest(t, input, expected, mainArgs)
-}
-
-func TestComplexSerializedReplace(t *testing.T) {
-	mainArgs := []string{
-		`http:\\/\\/example\\.com`,
-		`http:\\/\\/example2\\.com`,
-	}
-
-	input := `s:37:\"\\s=\\shttp_get\\(\'http:\\/\\/example\\.com\";`
-	expected := `s:38:\"\\s=\\shttp_get\\(\'http:\\/\\/example2\\.com\";`
-
+	input := `a:2:{s:3:\"key\";s:5:\"value\";s:3:\"css\";s:208:\"body { color: #123456;\r\nborder-bottom: none; }\r\ndiv.bg { background: url('https://uss-enterprise.com/wp-content/uploads/main-bg.gif');\r\n  background-position: left center;\r\n    background-repeat: no-repeat; }\";}`
+	expected := `a:2:{s:3:\"key\";s:5:\"value\";s:3:\"css\";s:206:\"body { color: #123456;\r\nborder-bottom: none; }\r\ndiv.bg { background: url('https://ncc-1701-d.space/wp-content/uploads/main-bg.gif');\r\n  background-position: left center;\r\n    background-repeat: no-repeat; }\";}`
 	doMainTest(t, input, expected, mainArgs)
 }
 
@@ -114,7 +102,7 @@ func TestSerializedReplaceWithCssAndUnrelatedSerializationMarker(t *testing.T) {
 		"https://ncc-1701-d.space",
 	}
 
-	input := `a:2:{s:3:\"key\";s:5:\"value\";s:3:\"css\";s:249:\"body { color: #123456;\r\nborder-bottom: none; }\r\nbody:after{ content: \"▼\"; }\r\ndiv.bg { background: url('https://uss-enterprise.com/wp-content/uploads/main-bg.gif');\r\n  background-position: left center;\r\n    background-repeat: no-repeat; }\";}`
-	expected := `a:2:{s:3:\"key\";s:5:\"value\";s:3:\"css\";s:247:\"body { color: #123456;\r\nborder-bottom: none; }\r\nbody:after{ content: \"▼\"; }\r\ndiv.bg { background: url('https://ncc-1701-d.space/wp-content/uploads/main-bg.gif');\r\n  background-position: left center;\r\n    background-repeat: no-repeat; }\";}`
+	input := `a:2:{s:3:\"key\";s:5:\"value\";s:3:\"css\";s:239:\"body { color: #123456;\r\nborder-bottom: none; }\r\nbody:after{ content: \"▼\"; }\r\ndiv.bg { background: url('https://uss-enterprise.com/wp-content/uploads/main-bg.gif');\r\n  background-position: left center;\r\n    background-repeat: no-repeat; }\";}`
+	expected := `a:2:{s:3:\"key\";s:5:\"value\";s:3:\"css\";s:237:\"body { color: #123456;\r\nborder-bottom: none; }\r\nbody:after{ content: \"▼\"; }\r\ndiv.bg { background: url('https://ncc-1701-d.space/wp-content/uploads/main-bg.gif');\r\n  background-position: left center;\r\n    background-repeat: no-repeat; }\";}`
 	doMainTest(t, input, expected, mainArgs)
 }

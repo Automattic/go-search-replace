@@ -173,6 +173,13 @@ func TestReplace(t *testing.T) {
 			out: []byte(`s:13:\"goodbye-world\";`),
 		},
 		{
+			testName: "serialized CSS",
+			from:     []byte(`https://uss-enterprise.com`),
+			to:       []byte(`https://ncc-1701-d.space`),
+			in:       []byte(`a:2:{s:3:\"key\";s:5:\"value\";s:3:\"css\";s:208:\"body { color: #123456;\r\nborder-bottom: none; }\r\ndiv.bg { background: url('https://uss-enterprise.com/wp-content/uploads/main-bg.gif');\r\n  background-position: left center;\r\n    background-repeat: no-repeat; }\";}`),
+			out:      []byte(`a:2:{s:3:\"key\";s:5:\"value\";s:3:\"css\";s:206:\"body { color: #123456;\r\nborder-bottom: none; }\r\ndiv.bg { background: url('https://ncc-1701-d.space/wp-content/uploads/main-bg.gif');\r\n  background-position: left center;\r\n    background-repeat: no-repeat; }\";}`),
+		},
+		{
 			testName: "string encoded by both MySQL and PHP",
 
 			from: []byte(`http:\\/\\/example\\.com`),

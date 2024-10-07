@@ -174,6 +174,9 @@ func fixSerializedContent(line *[]byte, replacements []*Replacement) *[]byte {
 		details, err := parseEscapedData(linePart)
 
 		if err != nil {
+			if err.Error() == "could not find serialized string prefix" && index == 0 {
+				return line
+			}
 			// we've run out of things to parse, so just break out and append the rest
 			rebuiltLine = append(rebuiltLine, linePart...)
 			break
@@ -259,21 +262,16 @@ func parseEscapedData(linePart []byte) (*EscapedDataDetails, error) {
 
 	secondMatch := serializedStringPrefixRegexp.FindSubmatchIndex(linePart[matchedAt+1:])
 
-	maxIndex := len(linePart)
+	maxIndex := len(linePart) - 1
 
 	if secondMatch != nil {
-		maxIndex = secondMatch[0]
+		maxIndex = secondMatch[0] + matchedAt
 	}
 
 	// let's find where the content actually ends.
 	// it should end when the unescaped value is `";`
 	for currentContentIndex < len(linePart) {
-		if currentContentIndex+2 >= maxIndex {
-
-			// if we have a second match, we can at least
-			if secondMatch != nil {
-
-			}
+		if currentContentIndex+2 > maxIndex {
 
 			// this algorithm SHOULD work, but in cases where the original byte count does not match
 			// the actual byte count, it'll error out. We'll add this safeguard here.
