@@ -280,7 +280,7 @@ func fixSerializedContent(line *[]byte, replacements []*Replacement) *Serialized
 
 		rebuiltLine = append(rebuiltLine, []byte(rebuilt)...)
 		serializedContentRange = append(serializedContentRange, SerializedContentRange{
-			From: index,
+			From: index + details.CurrentPartIndex,
 			To:   index + len(rebuilt) - 1,
 		})
 

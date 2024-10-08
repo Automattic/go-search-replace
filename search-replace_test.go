@@ -188,12 +188,12 @@ func TestReplace(t *testing.T) {
 			out:  []byte(`s:38:\"\\s=\\shttp_get\\(\'http:\\/\\/example2\\.com\";`),
 		},
 		{
-			testName: "serialized repetition",
+			testName: "non-serial replacement trying to apply itself to serial replacement",
 
 			from: []byte(`example`),
 			to:   []byte(`example2`),
-			in:   []byte(`s:37:\"\\s=\\shttp_get\\(\'http:\\/\\/example\\.com\";`),
-			out:  []byte(`s:38:\"\\s=\\shttp_get\\(\'http:\\/\\/example2\\.com\";`),
+			in:   []byte(`('example'),('s:37:\"\\s=\\shttp_get\\(\'http:\\/\\/example\\.com\";')`),
+			out:  []byte(`('example2'),('s:38:\"\\s=\\shttp_get\\(\'http:\\/\\/example2\\.com\";')`),
 		},
 		{
 			testName: "lots of encoding",
