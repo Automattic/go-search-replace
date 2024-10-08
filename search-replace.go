@@ -214,7 +214,7 @@ func replaceInSerializedBytes(serialized []byte, replacements []*Replacement) []
 	return serialized
 }
 
-var serializedStringPrefixRegexp = regexp.MustCompile(`s:(\d+):`)
+var serializedStringPrefixRegexp = regexp.MustCompile(`s:(\d+):\\"`)
 
 // Parses escaped data, returning the location details for further parsing
 func parseEscapedData(linePart []byte) (*EscapedDataDetails, error) {
