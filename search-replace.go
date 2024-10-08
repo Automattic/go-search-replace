@@ -38,34 +38,10 @@ type Replacement struct {
 	To   []byte
 }
 
-type EscapedDataDetails struct {
-	ContentStartIndex   int
-	ContentEndIndex     int
-	NextPartIndex       int
-	CurrentPartIndex    int
-	OriginalByteSize    int
-	SerializedPartRange SerializedPartRange
-}
-
-type SerializedPartRange struct {
-	From int
-	To   int
-}
-
 type SerializedReplaceResult struct {
 	Pre               []byte
 	SerializedPortion []byte
 	Post              []byte
-}
-
-type SerializedContentReplacement struct {
-	FixedContent           []byte
-	SerializedContentRange []SerializedPartRange
-}
-
-type LinePartWithType struct {
-	Content       []byte
-	PhpSerialized bool
 }
 
 func main() {
