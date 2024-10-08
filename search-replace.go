@@ -352,18 +352,10 @@ func unescapeContent(escaped []byte) []byte {
 	unescapedBytes := make([]byte, 0, len(escaped))
 	index := 0
 
-	// only applies to content - do not apply to raw mysql query
+	// only applies to content of a string - do not apply to raw mysql query
 	// tested with php -i, mysql client, and mysqldump and mydumper.
-	// 1. \" in dump becomes " when inserting a mysql row.
-	// 2. \\ in dump becomes \ when inserting a mysql row.
-	// 3. \' in dump becomes ' when inserting a mysql row.
-	// 4. mysql translates newline into \n when creating a mysqldump. Same applies to carriage return.
-	// 5. PHP serialize does not convert the bytes \r or \n into something else - they're as-is.
-	// 6. If using single quotes in php, \r and \n does not get converted into bytes - they become literal backslash and letter.
-	// Generally, to unescape, we need to do the following:
-	// 1. Convert \\ to \
-	// 2. Convert \' to '
-	// 3. Convert \" to "
+	// 1. mysql translates certain bytes to `\<char>` i.e. `\n`. So these needs unescaping to get the correct byte length. See `getUnescapedBytesIfEscaped`
+	// 2. PHP serialize does not convert raw bytes into `\<char>` - they're as-is, so we don't need to take into account of escaped value in byte length calculation.
 
 	backslash := byte('\\')
 
