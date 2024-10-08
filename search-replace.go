@@ -46,6 +46,21 @@ type EscapedDataDetails struct {
 	OriginalByteSize  int
 }
 
+type SerializedContentRange struct {
+	From int
+	To   int
+}
+
+type SerializedContentReplacement struct {
+	FixedContent           []byte
+	SerializedContentRange []SerializedContentRange
+}
+
+type LinePartWithType struct {
+	Content       []byte
+	PhpSerialized bool
+}
+
 func main() {
 	versionFlag := flag.Bool("version", false, "Show version information")
 	flag.Parse()
@@ -146,26 +161,83 @@ func Debugf(format string, args ...interface{}) {
 }
 
 func fixLine(line *[]byte, replacements []*Replacement) *[]byte {
+	var fixedSerializedContent *SerializedContentReplacement = nil
+
 	if bytes.Contains(*line, []byte("s:")) {
-		line = fixSerializedContent(line, replacements)
+		fixedSerializedContent = fixSerializedContent(line, replacements)
+		line = &fixedSerializedContent.FixedContent
 	}
 
 	Debugf("Doing global replacements: %s\n", string(*line))
+
+	var linePartsWithType []LinePartWithType
+
+	if fixedSerializedContent != nil {
+		index := 0
+
+		for _, serializedContentRange := range fixedSerializedContent.SerializedContentRange {
+			linePartsWithType = append(linePartsWithType, LinePartWithType{
+				Content:       (*line)[index:serializedContentRange.From],
+				PhpSerialized: false,
+			}, LinePartWithType{
+				Content:       (*line)[serializedContentRange.From : serializedContentRange.To+1],
+				PhpSerialized: true,
+			})
+
+			index = serializedContentRange.To + 1
+		}
+
+		lastIndex := len(*line) - 1
+
+		if index <= lastIndex {
+			linePartsWithType = append(linePartsWithType, LinePartWithType{
+				Content:       (*line)[index : lastIndex+1],
+				PhpSerialized: false,
+			})
+		}
+	} else {
+		linePartsWithType = []LinePartWithType{
+			{
+				Content:       *line,
+				PhpSerialized: false,
+			},
+		}
+	}
+
 	// Catch anything left
 	for _, replacement := range replacements {
-		*line = bytes.ReplaceAll(*line, replacement.From, replacement.To)
-		Debugf("After global replacement (from: %s | to: %s): %s\n", replacement.From, replacement.To, string(*line))
+		for index, linePartWithType := range linePartsWithType {
+			if linePartWithType.PhpSerialized == false {
+				linePartsWithType[index].Content = bytes.ReplaceAll(linePartWithType.Content, replacement.From, replacement.To)
+
+				Debugf("After replacing unserialized part (from: %s | to: %s): %s\n", replacement.From, replacement.To, string(linePartsWithType[index].Content))
+			}
+		}
 	}
+
+	rebuiltLine := bytes.Join(func() [][]byte {
+		parts := make([][]byte, len(linePartsWithType))
+		for i, part := range linePartsWithType {
+			parts[i] = part.Content
+		}
+		return parts
+	}(), nil)
+
+	*line = rebuiltLine
 
 	Debugf("All done: %s\n", string(*line))
 
 	return line
 }
 
-func fixSerializedContent(line *[]byte, replacements []*Replacement) *[]byte {
+func fixSerializedContent(line *[]byte, replacements []*Replacement) *SerializedContentReplacement {
 	index := 0
 
 	var rebuiltLine []byte
+
+	var serializedContentRange []SerializedContentRange
+
+	var result SerializedContentReplacement
 
 	for index < len(*line) {
 		Debugf("Start of loop, index: %d\n", index)
@@ -174,17 +246,22 @@ func fixSerializedContent(line *[]byte, replacements []*Replacement) *[]byte {
 		details, err := parseEscapedData(linePart)
 
 		if err != nil {
+			// if right from the beginning, we couldn't find any string prefix,
 			if err.Error() == "could not find serialized string prefix" && index == 0 {
-				return line
+				result = SerializedContentReplacement{
+					SerializedContentRange: serializedContentRange,
+					FixedContent:           *line,
+				}
+				return &result
 			}
+
 			// we've run out of things to parse, so just break out and append the rest
 			rebuiltLine = append(rebuiltLine, linePart...)
 			break
 		}
 
+		// append all the string right before the part we found the next serialized string
 		rebuiltLine = append(rebuiltLine, (*line)[index:index+details.CurrentPartIndex]...)
-
-		index = index + details.NextPartIndex
 
 		content := linePart[details.ContentStartIndex : details.ContentEndIndex+1]
 
@@ -193,7 +270,7 @@ func fixSerializedContent(line *[]byte, replacements []*Replacement) *[]byte {
 		// php needs the unescaped length, so let's unescape it and measure the length
 		contentLength := len(unescapeContent(updatedContent))
 
-		// but if the content never changed, we'll let the error be for safety.
+		// but if the content never changed, and there's an error in the original byte size, we'll let the error be for safety.
 		if bytes.Equal(content, updatedContent) {
 			contentLength = details.OriginalByteSize
 		}
@@ -202,9 +279,20 @@ func fixSerializedContent(line *[]byte, replacements []*Replacement) *[]byte {
 		rebuilt := "s:" + strconv.Itoa(contentLength) + ":\\\"" + string(updatedContent) + "\\\";"
 
 		rebuiltLine = append(rebuiltLine, []byte(rebuilt)...)
+		serializedContentRange = append(serializedContentRange, SerializedContentRange{
+			From: index,
+			To:   index + len(rebuilt) - 1,
+		})
+
+		index = index + details.NextPartIndex
 	}
 
-	return &rebuiltLine
+	result = SerializedContentReplacement{
+		SerializedContentRange: serializedContentRange,
+		FixedContent:           rebuiltLine,
+	}
+
+	return &result
 }
 
 func replaceInSerializedBytes(serialized []byte, replacements []*Replacement) []byte {
