@@ -39,21 +39,28 @@ type Replacement struct {
 }
 
 type EscapedDataDetails struct {
-	ContentStartIndex int
-	ContentEndIndex   int
-	NextPartIndex     int
-	CurrentPartIndex  int
-	OriginalByteSize  int
+	ContentStartIndex   int
+	ContentEndIndex     int
+	NextPartIndex       int
+	CurrentPartIndex    int
+	OriginalByteSize    int
+	SerializedPartRange SerializedPartRange
 }
 
-type SerializedContentRange struct {
+type SerializedPartRange struct {
 	From int
 	To   int
 }
 
+type SerializedReplaceResult struct {
+	Pre               []byte
+	SerializedPortion []byte
+	Post              []byte
+}
+
 type SerializedContentReplacement struct {
 	FixedContent           []byte
-	SerializedContentRange []SerializedContentRange
+	SerializedContentRange []SerializedPartRange
 }
 
 type LinePartWithType struct {
@@ -161,67 +168,24 @@ func Debugf(format string, args ...interface{}) {
 }
 
 func fixLine(line *[]byte, replacements []*Replacement) *[]byte {
-	var fixedSerializedContent *SerializedContentReplacement = nil
-
-	if bytes.Contains(*line, []byte("s:")) {
-		fixedSerializedContent = fixSerializedContent(line, replacements)
-		line = &fixedSerializedContent.FixedContent
-	}
 
 	Debugf("Doing global replacements: %s\n", string(*line))
 
-	var linePartsWithType []LinePartWithType
+	linePart := *line
 
-	if fixedSerializedContent != nil {
-		index := 0
+	var rebuiltLine []byte
 
-		for _, serializedContentRange := range fixedSerializedContent.SerializedContentRange {
-			linePartsWithType = append(linePartsWithType, LinePartWithType{
-				Content:       (*line)[index:serializedContentRange.From],
-				PhpSerialized: false,
-			}, LinePartWithType{
-				Content:       (*line)[serializedContentRange.From : serializedContentRange.To+1],
-				PhpSerialized: true,
-			})
-
-			index = serializedContentRange.To + 1
+	for len(linePart) > 0 {
+		result, err := fixLineWithSerializedData(linePart, replacements)
+		if err != nil {
+			Debugf("Error when trying to fix line : %s\n", err.Error())
+			rebuiltLine = append(rebuiltLine, linePart...)
+			break
 		}
-
-		lastIndex := len(*line) - 1
-
-		if index <= lastIndex {
-			linePartsWithType = append(linePartsWithType, LinePartWithType{
-				Content:       (*line)[index : lastIndex+1],
-				PhpSerialized: false,
-			})
-		}
-	} else {
-		linePartsWithType = []LinePartWithType{
-			{
-				Content:       *line,
-				PhpSerialized: false,
-			},
-		}
+		rebuiltLine = append(rebuiltLine, result.Pre...)
+		rebuiltLine = append(rebuiltLine, result.SerializedPortion...)
+		linePart = result.Post
 	}
-
-	// Catch anything left
-	for _, replacement := range replacements {
-		for index, linePartWithType := range linePartsWithType {
-			if linePartWithType.PhpSerialized == false {
-				linePartsWithType[index].Content = bytes.ReplaceAll(linePartWithType.Content, replacement.From, replacement.To)
-
-				Debugf("After replacing unserialized part (from: %s | to: %s): %s\n", replacement.From, replacement.To, string(linePartsWithType[index].Content))
-			}
-		}
-	}
-
-	rebuiltLine := bytes.Join(func() [][]byte {
-		parts := make([][]byte, len(linePartsWithType))
-		for i, part := range linePartsWithType {
-			parts[i] = part.Content
-		}
-		return parts
-	}(), nil)
 
 	*line = rebuiltLine
 
@@ -230,131 +194,60 @@ func fixLine(line *[]byte, replacements []*Replacement) *[]byte {
 	return line
 }
 
-func fixSerializedContent(line *[]byte, replacements []*Replacement) *SerializedContentReplacement {
-	index := 0
-
-	var rebuiltLine []byte
-
-	var serializedContentRange []SerializedContentRange
-
-	var result SerializedContentReplacement
-
-	for index < len(*line) {
-		Debugf("Start of loop, index: %d\n", index)
-		linePart := (*line)[index:]
-
-		details, err := parseEscapedData(linePart)
-
-		if err != nil {
-			// if right from the beginning, we couldn't find any string prefix,
-			if err.Error() == "could not find serialized string prefix" && index == 0 {
-				result = SerializedContentReplacement{
-					SerializedContentRange: serializedContentRange,
-					FixedContent:           *line,
-				}
-				return &result
-			}
-
-			// we've run out of things to parse, so just break out and append the rest
-			rebuiltLine = append(rebuiltLine, linePart...)
-			break
-		}
-
-		// append all the string right before the part we found the next serialized string
-		rebuiltLine = append(rebuiltLine, (*line)[index:index+details.CurrentPartIndex]...)
-
-		content := linePart[details.ContentStartIndex : details.ContentEndIndex+1]
-
-		updatedContent := replaceInSerializedBytes(content, replacements)
-
-		// php needs the unescaped length, so let's unescape it and measure the length
-		contentLength := len(unescapeContent(updatedContent))
-
-		// but if the content never changed, and there's an error in the original byte size, we'll let the error be for safety.
-		if bytes.Equal(content, updatedContent) {
-			contentLength = details.OriginalByteSize
-		}
-
-		// and we rebuild the string
-		rebuilt := "s:" + strconv.Itoa(contentLength) + ":\\\"" + string(updatedContent) + "\\\";"
-
-		rebuiltLine = append(rebuiltLine, []byte(rebuilt)...)
-		serializedContentRange = append(serializedContentRange, SerializedContentRange{
-			From: index + details.CurrentPartIndex,
-			To:   index + len(rebuilt) - 1,
-		})
-
-		index = index + details.NextPartIndex
-	}
-
-	result = SerializedContentReplacement{
-		SerializedContentRange: serializedContentRange,
-		FixedContent:           rebuiltLine,
-	}
-
-	return &result
-}
-
-func replaceInSerializedBytes(serialized []byte, replacements []*Replacement) []byte {
+func replaceByPart(part []byte, replacements []*Replacement) []byte {
 	for _, replacement := range replacements {
-		serialized = bytes.ReplaceAll(serialized, replacement.From, replacement.To)
+		part = bytes.ReplaceAll(part, replacement.From, replacement.To)
 	}
-	return serialized
+	return part
 }
 
 var serializedStringPrefixRegexp = regexp.MustCompile(`s:(\d+):\\"`)
 
-// Parses escaped data, returning the location details for further parsing
-func parseEscapedData(linePart []byte) (*EscapedDataDetails, error) {
-
-	details := EscapedDataDetails{
-		ContentStartIndex: 0,
-		ContentEndIndex:   0,
-		NextPartIndex:     0,
-		CurrentPartIndex:  0,
-		OriginalByteSize:  0,
-	}
+func fixLineWithSerializedData(linePart []byte, replacements []*Replacement) (*SerializedReplaceResult, error) {
 
 	// find starting point in the line
 	//TODO: We should first check if we found the string when inside a quote or not.
 	// but currently skipping that scenario because it seems unlikely to find it outside.
 	match := serializedStringPrefixRegexp.FindSubmatchIndex(linePart)
 	if match == nil {
-		return nil, fmt.Errorf("could not find serialized string prefix")
+		return &SerializedReplaceResult{
+			Pre:               replaceByPart(linePart, replacements),
+			SerializedPortion: []byte{},
+			Post:              []byte{},
+		}, nil
 	}
 
-	matchedAt := match[0]
+	pre := append([]byte{}, linePart[:match[0]]...)
+
+	pre = replaceByPart(pre, replacements)
+
+	if pre == nil {
+		pre = []byte{}
+	}
+
 	originalBytes := linePart[match[2]:match[3]]
 
-	details.OriginalByteSize, _ = strconv.Atoi(string(originalBytes))
-
-	details.CurrentPartIndex = matchedAt
+	originalByteSize, _ := strconv.Atoi(string(originalBytes))
 
 	// the following assumes escaped double quotes
 	//TODO: MySQL can optionally not escape the double quote,
 	// but generally sqldumps always include the quotes.
-	initialContentIndex := match[3] + 3
+	contentStartIndex := match[3] + 3
 
-	details.ContentStartIndex = initialContentIndex
-
-	currentContentIndex := initialContentIndex
+	currentContentIndex := contentStartIndex
 
 	contentByteCount := 0
 
-	var nextPartIndex int
+	contentEndIndex := 0
+
+	var nextSliceIndex int
 
 	backslash := byte('\\')
 	semicolon := byte(';')
 	quote := byte('"')
-	nextPartFound := false
-
-	secondMatch := serializedStringPrefixRegexp.FindSubmatchIndex(linePart[matchedAt+1:])
+	nextSliceFound := false
 
 	maxIndex := len(linePart) - 1
-
-	if secondMatch != nil {
-		maxIndex = secondMatch[0] + matchedAt
-	}
 
 	// let's find where the content actually ends.
 	// it should end when the unescaped value is `";`
@@ -368,7 +261,7 @@ func parseEscapedData(linePart []byte) (*EscapedDataDetails, error) {
 		char := linePart[currentContentIndex]
 		secondChar := linePart[currentContentIndex+1]
 		thirdChar := linePart[currentContentIndex+2]
-		if char == backslash && contentByteCount < details.OriginalByteSize {
+		if char == backslash && contentByteCount < originalByteSize {
 			unescapedBytePair := getUnescapedBytesIfEscaped(linePart[currentContentIndex : currentContentIndex+2])
 			// if we get the byte pair without the backslash, it corresponds to a byte
 			contentByteCount += len(unescapedBytePair)
@@ -378,26 +271,46 @@ func parseEscapedData(linePart []byte) (*EscapedDataDetails, error) {
 			continue
 		}
 
-		if char == backslash && secondChar == quote && thirdChar == semicolon && contentByteCount >= details.OriginalByteSize {
+		if char == backslash && secondChar == quote && thirdChar == semicolon && contentByteCount >= originalByteSize {
 
-			// since we've filtered out all the escaped value already, this should be the actual end
-			nextPartIndex = currentContentIndex + 3
-			details.NextPartIndex = nextPartIndex
+			// we're at backslash
+
+			// index of the beginning of the next slice
+			nextSliceIndex = currentContentIndex + 3
 			// we're at backslash, so we need to minus 1 to get the index where the content finishes
-			details.ContentEndIndex = currentContentIndex - 1
-			nextPartFound = true
+			contentEndIndex = currentContentIndex - 1
+			nextSliceFound = true
 			break
+		}
+
+		if contentByteCount > originalByteSize {
+			return nil, fmt.Errorf("faulty data, byte count does not match data size")
 		}
 
 		contentByteCount++
 		currentContentIndex++
 	}
 
-	if nextPartFound == false {
+	content := append([]byte{}, linePart[contentStartIndex:contentEndIndex+1]...)
+
+	content = replaceByPart(content, replacements)
+
+	contentLength := len(unescapeContent(content))
+
+	// and we rebuild the string
+	rebuiltSerializedString := "s:" + strconv.Itoa(contentLength) + ":\\\"" + string(content) + "\\\";"
+
+	if nextSliceFound == false {
 		return nil, fmt.Errorf("end of serialized string not found")
 	}
 
-	return &details, nil
+	result := SerializedReplaceResult{
+		Pre:               pre,
+		SerializedPortion: []byte(rebuiltSerializedString),
+		Post:              linePart[nextSliceIndex:],
+	}
+
+	return &result, nil
 }
 
 func getUnescapedBytesIfEscaped(charPair []byte) []byte {
