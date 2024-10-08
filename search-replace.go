@@ -316,12 +316,8 @@ func getUnescapedBytesIfEscaped(charPair []byte) []byte {
 
 	backslash := byte('\\')
 
-	//escapables := []byte{'\\', '\'', '"', 'n', 'r', 't', 'b', 'f', '0'}
-
-	// a map of the second byte to its actual binary presentation
-
-	// if the first byte is not a backslash, we don't need to do anything
-
+	// if the first byte is not a backslash, we don't need to do anything - we'll return the bytes
+	// as per the function name, we'll return both bytes, or return one byte if one byte is actually an escape character
 	if charPair[0] != backslash {
 		return charPair
 	}
