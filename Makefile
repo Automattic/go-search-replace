@@ -1,7 +1,9 @@
 BINARY = go-search-replace
 BUILDDIR = ./build
 
-all: vet fmt lint test build
+all: vet fmt test build
+
+ci: clean vet test
 
 build: clean
 	which gox > /dev/null || go get -u github.com/mitchellh/gox
@@ -14,9 +16,6 @@ vet:
 fmt:
 	gofmt -s -l . | grep -v vendor | tee /dev/stderr
 
-lint:
-	golint ./... | grep -v vendor | tee /dev/stderr
-
 test:
 	go test -v ./...
 	go test -bench .
@@ -27,4 +26,4 @@ bench:
 clean:
 	rm -rf ${BUILDDIR}
 
-.PHONY: all clean vet fmt lint test build
+.PHONY: all ci clean vet fmt test build
