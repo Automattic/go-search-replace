@@ -135,7 +135,6 @@ func TestReplace(t *testing.T) {
 		// Generally recovering from a 'syntax error' of a parser - which is what we have here, due to the wrong byte size for a8c.com,
 		// is probably impossible. It destroys all offsets and suddenly we lose track of where the tokenization is at.
 		// Self-recovery is prone to error, and might grab the token entrance at the wrong place.
-		// Also, the PHP version of search and replace does not support this either.
 		//{
 		//	testName: "only fix updated strings, with bad data in between",
 		//
@@ -201,6 +200,20 @@ func TestReplace(t *testing.T) {
 			to:       []byte(`\\x`),
 			in:       []byte(`s:18:\"\\a\\b\\c\\d\\e\\f\\g\\h\";\";`),
 			out:      []byte(`s:14:\"\\a\\b\\x\\f\\g\\h\";\";`),
+		},
+		{
+			testName: "escaped delimiters",
+			from:     []byte(`hello`),
+			to:       []byte(`helloworld`),
+			in:       []byte(`('s:34:\"\";\";\";\";\";\\\";\\\";\\\"; hello \\\\\";\\\\\";\";')`),
+			out:      []byte(`('s:39:\"\";\";\";\";\";\\\";\\\";\\\"; helloworld \\\\\";\\\\\";\";')`),
+		},
+		{
+			testName: "mydumper escaped delimiters",
+			from:     []byte(`hello`),
+			to:       []byte(`helloworld`),
+			in:       []byte(`("s:34:\"\";\";\";\";\";\\\";\\\";\\\"; hello \\\\\";\\\\\";\";")`),
+			out:      []byte(`("s:39:\"\";\";\";\";\";\\\";\\\";\\\"; helloworld \\\\\";\\\\\";\";")`),
 		},
 		{
 			testName: "search and replace with different lengths",
