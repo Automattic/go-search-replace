@@ -283,7 +283,7 @@ func TestMultiReplace(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			replaced := replaceAndFix(&test.in, test.replacements)
+			replaced := fixLine(&test.in, test.replacements)
 
 			if !bytes.Equal(*replaced, test.out) {
 				t.Error("Expected:", string(test.out), "Actual:", string(*replaced))
