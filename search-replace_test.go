@@ -12,7 +12,35 @@ func BenchmarkFix(b *testing.B) {
 	}
 }
 
-func BenchmarkSimpleReplace(b *testing.B) {
+func BenchmarkNoReplaceOld(b *testing.B) {
+	line := []byte("http://automattic.com")
+	from := []byte("bananas")
+	to := []byte("apples")
+	for i := 0; i < b.N; i++ {
+		replaceAndFix(&line, []*Replacement{
+			{
+				From: from,
+				To:   to,
+			},
+		})
+	}
+}
+
+func BenchmarkNoReplaceNew(b *testing.B) {
+	line := []byte("http://automattic.com")
+	from := []byte("bananas")
+	to := []byte("apples")
+	for i := 0; i < b.N; i++ {
+		fixLine(&line, []*Replacement{
+			{
+				From: from,
+				To:   to,
+			},
+		})
+	}
+}
+
+func BenchmarkSimpleReplaceOld(b *testing.B) {
 	line := []byte("http://automattic.com")
 	from := []byte("http:")
 	to := []byte("https:")
@@ -26,12 +54,40 @@ func BenchmarkSimpleReplace(b *testing.B) {
 	}
 }
 
-func BenchmarkSerializedReplace(b *testing.B) {
+func BenchmarkSimpleReplaceNew(b *testing.B) {
+	line := []byte("http://automattic.com")
+	from := []byte("http:")
+	to := []byte("https:")
+	for i := 0; i < b.N; i++ {
+		fixLine(&line, []*Replacement{
+			{
+				From: from,
+				To:   to,
+			},
+		})
+	}
+}
+
+func BenchmarkSerializedReplaceOld(b *testing.B) {
 	line := []byte(`s:0:\"http://automattic.com\";`)
 	from := []byte("http://automattic.com")
 	to := []byte("https://automattic.com")
 	for i := 0; i < b.N; i++ {
 		replaceAndFix(&line, []*Replacement{
+			{
+				From: from,
+				To:   to,
+			},
+		})
+	}
+}
+
+func BenchmarkSerializedReplaceNew(b *testing.B) {
+	line := []byte(`s:0:\"http://automattic.com\";`)
+	from := []byte("http://automattic.com")
+	to := []byte("https://automattic.com")
+	for i := 0; i < b.N; i++ {
+		fixLine(&line, []*Replacement{
 			{
 				From: from,
 				To:   to,
@@ -75,13 +131,26 @@ func TestReplace(t *testing.T) {
 			in:  []byte(`('s:21:\"http://automattic.com\";'),('s:21:\"https://a8c.com\";')`),
 			out: []byte(`('s:22:\"https://automattic.com\";'),('s:21:\"https://a8c.com\";')`),
 		},
+		//TODO: Test disabled. This is a really hard problem to solve.
+		// Generally recovering from a 'syntax error' of a parser - which is what we have here, due to the wrong byte size for a8c.com,
+		// is probably impossible. It destroys all offsets and suddenly we lose track of where the tokenization is at.
+		// Self-recovery is prone to error, and might grab the token entrance at the wrong place.
+		//{
+		//	testName: "only fix updated strings, with bad data in between",
+		//
+		//	from: []byte("http://automattic.com"),
+		//	to:   []byte("https://automattic.com"),
+		//
+		//	in:  []byte(`('s:21:\"http://automattic.com\";'),('s:21:\"https://a8c.com\";'),('s:21:\"http://automattic.com\";')`),
+		//	out: []byte(`('s:22:\"https://automattic.com\";'),('s:21:\"https://a8c.com\";'),('s:22:\"https://automattic.com\";')`),
+		//},
 		{
 			testName: "emoji from",
 
 			from: []byte("http://🖖.com"),
 			to:   []byte("https://spock.com"),
 
-			in:  []byte(`s:12:\"http://🖖.com\";`),
+			in:  []byte(`s:15:\"http://🖖.com\";`),
 			out: []byte(`s:17:\"https://spock.com\";`),
 		},
 		{
@@ -93,11 +162,73 @@ func TestReplace(t *testing.T) {
 			in:  []byte(`s:17:\"https://spock.com\";`),
 			out: []byte(`s:15:\"http://🖖.com\";`),
 		},
+		{
+			testName: "search and replace with different lengths",
+
+			from: []byte("hello"),
+			to:   []byte("goodbye"),
+
+			in:  []byte(`s:11:\"hello-world\";`),
+			out: []byte(`s:13:\"goodbye-world\";`),
+		},
+		{
+			testName: "serialized CSS",
+			from:     []byte(`https://uss-enterprise.com`),
+			to:       []byte(`https://ncc-1701-d.space`),
+			in:       []byte(`a:2:{s:3:\"key\";s:5:\"value\";s:3:\"css\";s:208:\"body { color: #123456;\r\nborder-bottom: none; }\r\ndiv.bg { background: url('https://uss-enterprise.com/wp-content/uploads/main-bg.gif');\r\n  background-position: left center;\r\n    background-repeat: no-repeat; }\";}`),
+			out:      []byte(`a:2:{s:3:\"key\";s:5:\"value\";s:3:\"css\";s:206:\"body { color: #123456;\r\nborder-bottom: none; }\r\ndiv.bg { background: url('https://ncc-1701-d.space/wp-content/uploads/main-bg.gif');\r\n  background-position: left center;\r\n    background-repeat: no-repeat; }\";}`),
+		},
+		{
+			testName: "string encoded by both MySQL and PHP",
+
+			from: []byte(`http:\\/\\/example\\.com`),
+			to:   []byte(`http:\\/\\/example2\\.com`),
+			in:   []byte(`s:37:\"\\s=\\shttp_get\\(\'http:\\/\\/example\\.com\";`),
+			out:  []byte(`s:38:\"\\s=\\shttp_get\\(\'http:\\/\\/example2\\.com\";`),
+		},
+		{
+			testName: "non-serial replacement trying to apply itself to serial replacement",
+
+			from: []byte(`example`),
+			to:   []byte(`example2`),
+			in:   []byte(`('example'),('s:37:\"\\s=\\shttp_get\\(\'http:\\/\\/example\\.com\";')`),
+			out:  []byte(`('example2'),('s:38:\"\\s=\\shttp_get\\(\'http:\\/\\/example2\\.com\";')`),
+		},
+		{
+			testName: "lots of encoding",
+			from:     []byte(`\\c\\d\\e`),
+			to:       []byte(`\\x`),
+			in:       []byte(`s:18:\"\\a\\b\\c\\d\\e\\f\\g\\h\";\";`),
+			out:      []byte(`s:14:\"\\a\\b\\x\\f\\g\\h\";\";`),
+		},
+		{
+			testName: "escaped delimiters",
+			from:     []byte(`hello`),
+			to:       []byte(`helloworld`),
+			in:       []byte(`('s:34:\"\";\";\";\";\";\\\";\\\";\\\"; hello \\\\\";\\\\\";\";')`),
+			out:      []byte(`('s:39:\"\";\";\";\";\";\\\";\\\";\\\"; helloworld \\\\\";\\\\\";\";')`),
+		},
+		{
+			testName: "mydumper escaped delimiters",
+			from:     []byte(`hello`),
+			to:       []byte(`helloworld`),
+			in:       []byte(`("s:34:\"\";\";\";\";\";\\\";\\\";\\\"; hello \\\\\";\\\\\";\";")`),
+			out:      []byte(`("s:39:\"\";\";\";\";\";\\\";\\\";\\\"; helloworld \\\\\";\\\\\";\";")`),
+		},
+		{
+			testName: "search and replace with different lengths",
+
+			from: []byte("bbbbbbbbbb"),
+			to:   []byte("ccccccccccccccc"),
+
+			in:  []byte(`s:20:\"aaaaabbbbbbbbbbaaaaa\";`),
+			out: []byte(`s:25:\"aaaaacccccccccccccccaaaaa\";`),
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			replaced := replaceAndFix(&test.in, []*Replacement{
+			replaced := fixLine(&test.in, []*Replacement{
 				{
 					From: test.from,
 					To:   test.to,
@@ -152,7 +283,7 @@ func TestMultiReplace(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			replaced := replaceAndFix(&test.in, test.replacements)
+			replaced := fixLine(&test.in, test.replacements)
 
 			if !bytes.Equal(*replaced, test.out) {
 				t.Error("Expected:", string(test.out), "Actual:", string(*replaced))

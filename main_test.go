@@ -84,3 +84,25 @@ func TestMultipleReplaceWithoutNewlineAtEOF(t *testing.T) {
 	expected := "Space, the final frontier!\nCheck out: warp://ncc-1701-d.space/decks/10/areas/forward"
 	doMainTest(t, input, expected, mainArgs)
 }
+
+func TestSerializedReplaceWithCss(t *testing.T) {
+	mainArgs := []string{
+		"https://uss-enterprise.com",
+		"https://ncc-1701-d.space",
+	}
+
+	input := `a:2:{s:3:\"key\";s:5:\"value\";s:3:\"css\";s:208:\"body { color: #123456;\r\nborder-bottom: none; }\r\ndiv.bg { background: url('https://uss-enterprise.com/wp-content/uploads/main-bg.gif');\r\n  background-position: left center;\r\n    background-repeat: no-repeat; }\";}`
+	expected := `a:2:{s:3:\"key\";s:5:\"value\";s:3:\"css\";s:206:\"body { color: #123456;\r\nborder-bottom: none; }\r\ndiv.bg { background: url('https://ncc-1701-d.space/wp-content/uploads/main-bg.gif');\r\n  background-position: left center;\r\n    background-repeat: no-repeat; }\";}`
+	doMainTest(t, input, expected, mainArgs)
+}
+
+func TestSerializedReplaceWithCssAndUnrelatedSerializationMarker(t *testing.T) {
+	mainArgs := []string{
+		"https://uss-enterprise.com",
+		"https://ncc-1701-d.space",
+	}
+
+	input := `a:2:{s:3:\"key\";s:5:\"value\";s:3:\"css\";s:239:\"body { color: #123456;\r\nborder-bottom: none; }\r\nbody:after{ content: \"▼\"; }\r\ndiv.bg { background: url('https://uss-enterprise.com/wp-content/uploads/main-bg.gif');\r\n  background-position: left center;\r\n    background-repeat: no-repeat; }\";}`
+	expected := `a:2:{s:3:\"key\";s:5:\"value\";s:3:\"css\";s:237:\"body { color: #123456;\r\nborder-bottom: none; }\r\nbody:after{ content: \"▼\"; }\r\ndiv.bg { background: url('https://ncc-1701-d.space/wp-content/uploads/main-bg.gif');\r\n  background-position: left center;\r\n    background-repeat: no-repeat; }\";}`
+	doMainTest(t, input, expected, mainArgs)
+}
