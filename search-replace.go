@@ -135,18 +135,7 @@ func main() {
 	}
 }
 
-var debugMode = false
-
-func Debugf(format string, args ...interface{}) {
-	if debugMode {
-		fmt.Printf(format, args...)
-	}
-}
-
 func fixLine(line *[]byte, replacements []*Replacement) *[]byte {
-
-	Debugf("Doing global replacements: %s\n", string(*line))
-
 	linePart := *line
 
 	var rebuiltLine []byte
@@ -154,7 +143,6 @@ func fixLine(line *[]byte, replacements []*Replacement) *[]byte {
 	for len(linePart) > 0 {
 		result, err := fixLineWithSerializedData(linePart, replacements)
 		if err != nil {
-			Debugf("Error when trying to fix line : %s\n", err.Error())
 			rebuiltLine = append(rebuiltLine, linePart...)
 			break
 		}
@@ -164,8 +152,6 @@ func fixLine(line *[]byte, replacements []*Replacement) *[]byte {
 	}
 
 	*line = rebuiltLine
-
-	Debugf("All done: %s\n", string(*line))
 
 	return line
 }
