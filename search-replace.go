@@ -206,7 +206,8 @@ func fixLineWithSerializedData(linePart []byte, replacements []*Replacement) (*S
 	originalByteSize, _ := strconv.Atoi(string(originalBytes))
 
 	// the following assumes escaped double quotes
-	//TODO: MySQL can optionally not escape the double quote,
+	// i.e. s:5:\"x -> we'll need to shift our index from '5' to 'x' - hence shifting by 3
+	// MySQL can optionally not escape the double quote,
 	// but generally sqldumps always include the quotes.
 	contentStartIndex := match[3] + 3
 
