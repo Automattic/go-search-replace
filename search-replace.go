@@ -233,7 +233,7 @@ func fixLineWithSerializedData(linePart []byte, replacements []*Replacement) (*S
 
 			// this algorithm SHOULD work, but in cases where the original byte count does not match
 			// the actual byte count, it'll error out. We'll add this safeguard here.
-			return nil, fmt.Errorf("faulty data, byte count does not match data size")
+			return nil, fmt.Errorf("faulty serialized data: out-of-bound index access detected")
 		}
 		char := linePart[currentContentIndex]
 		secondChar := linePart[currentContentIndex+1]
@@ -261,7 +261,7 @@ func fixLineWithSerializedData(linePart []byte, replacements []*Replacement) (*S
 		}
 
 		if contentByteCount > originalByteSize {
-			return nil, fmt.Errorf("faulty data, byte count does not match data size")
+			return nil, fmt.Errorf("faulty serialized data: calculated byte count does not match given data size")
 		}
 
 		contentByteCount++
@@ -278,7 +278,7 @@ func fixLineWithSerializedData(linePart []byte, replacements []*Replacement) (*S
 	rebuiltSerializedString := "s:" + strconv.Itoa(contentLength) + ":\\\"" + string(content) + "\\\";"
 
 	if nextSliceFound == false {
-		return nil, fmt.Errorf("end of serialized string not found")
+		return nil, fmt.Errorf("faulty serialized data: end of serialized data not found")
 	}
 
 	result := SerializedReplaceResult{
