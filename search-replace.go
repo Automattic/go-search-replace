@@ -182,8 +182,8 @@ var serializedStringPrefixRegexp = regexp.MustCompile(`s:(\d+):\\"`)
 func fixLineWithSerializedData(linePart []byte, replacements []*Replacement) (*SerializedReplaceResult, error) {
 
 	// find starting point in the line
-	//TODO: We should first check if we found the string when inside a quote or not.
-	// but currently skipping that scenario because it seems unlikely to find it outside.
+	// We're not checking if we found the serialized string prefix inside a quote or not.
+	// Currently skipping that scenario because it seems unlikely to find it outside.
 	match := serializedStringPrefixRegexp.FindSubmatchIndex(linePart)
 	if match == nil {
 		return &SerializedReplaceResult{
