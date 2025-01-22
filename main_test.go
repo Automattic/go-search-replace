@@ -106,3 +106,41 @@ func TestSerializedReplaceWithCssAndUnrelatedSerializationMarker(t *testing.T) {
 	expected := `a:2:{s:3:\"key\";s:5:\"value\";s:3:\"css\";s:237:\"body { color: #123456;\r\nborder-bottom: none; }\r\nbody:after{ content: \"▼\"; }\r\ndiv.bg { background: url('https://ncc-1701-d.space/wp-content/uploads/main-bg.gif');\r\n  background-position: left center;\r\n    background-repeat: no-repeat; }\";}`
 	doMainTest(t, input, expected, mainArgs)
 }
+
+func TestInput(t *testing.T) {
+	var tests = []struct {
+		testName string
+		in       string
+		valid    bool
+	}{
+		{
+			testName: "Simple domain name",
+			in:       "automattic.com",
+			valid:    true,
+		},
+		{
+			testName: "Short string",
+			in:       "s:",
+			valid:    false,
+		},
+		{
+			testName: "SQL string",
+			in:       "),(",
+			valid:    false,
+		},
+		{
+			testName: "Serialization structure",
+			in:       "a:4:",
+			valid:    false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			valid := validInput(test.in, minInLength)
+			if valid != test.valid {
+				t.Error("Expected:", test.valid, "Actual:", valid)
+			}
+		})
+	}
+}
