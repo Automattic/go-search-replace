@@ -1,0 +1,77 @@
+name: Prepare Release
+
+on:
+  push:
+    tags:
+      - '**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prepare_release:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        run: |
+          GOOS=linux   GOARCH=amd64 go build -o bin/go-search-replace_linux_amd64       main.go
+          GOOS=linux   GOARCH=arm64 go build -o bin/go-search-replace_linux_arm64       main.go
+          GOOS=linux   GOARCH=386   go build -o bin/go-search-replace_linux_386         main.go
+          GOOS=windows GOARCH=amd64 go build -o bin/go-search-replace_windows_amd64.exe main.go
+          GOOS=windows GOARCH=arm64 go build -o bin/go-search-replace_windows_arm64.exe main.go
+          GOOS=windows GOARCH=386   go build -o bin/go-search-replace_windows_386.exe   main.go
+          GOOS=darwin  GOARCH=amd64 go build -o bin/go-search-replace_darwin_amd64      main.go
+          GOOS=darwin  GOARCH=arm64 go build -o bin/go-search-replace_darwin_arm64      main.go
+        env:
+          CGO_ENABLED: 0
+
+      - name: Attest build provenance
+        id: attest
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: |
+            bin/go-search-replace_linux_amd64
+            bin/go-search-replace_linux_arm64
+            bin/go-search-replace_linux_386
+            bin/go-search-replace_windows_amd64.exe
+            bin/go-search-replace_windows_arm64.exe
+            bin/go-search-replace_windows_386.exe
+            bin/go-search-replace_darwin_amd64
+            bin/go-search-replace_darwin_arm64
+
+      - name: Archive files
+        run: for i in go-search-replace_*; do gzip -9 "${i}"; done
+        working-directory: bin
+
+      - name: Generate provenance file
+        run: |
+          jq .dsseEnvelope "${{ steps.attest.outputs.bundle-path }}" > bin/go-search-replace.intoto.jsonl
+
+      - name: Create a release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            bin/go-search-replace_linux_amd64.gz
+            bin/go-search-replace_linux_arm64.gz
+            bin/go-search-replace_linux_386.gz
+            bin/go-search-replace_windows_amd64.exe.gz
+            bin/go-search-replace_windows_arm64.exe.gz
+            bin/go-search-replace_windows_386.exe.gz
+            bin/go-search-replace_darwin_amd64.gz
+            bin/go-search-replace_darwin_arm64.gz
+            bin/go-search-replace.intoto.jsonl
