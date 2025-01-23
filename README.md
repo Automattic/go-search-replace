@@ -58,3 +58,35 @@ Nagivage to that directory and run
 `make`
 
 `go-search-replace` will be ready for you to use. Once built you won't have to complete any of the above steps again.
+
+## Package Usage
+
+To use it as a package in your Go project, you can install it with the following command:
+
+```
+go get github.com/Automattic/go-search-replace
+```
+
+Once you've installed the package, you can use the `searchreplace` package in your project. Here's an example:
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/Automattic/go-search-replace/searchreplace"
+)
+
+func main() {
+	input := []byte(`s:3:\"foo\";`)
+
+	result := searchreplace.FixLine(&input, []*searchreplace.Replacement{
+		{
+			From: []byte("foo"),
+			To:   []byte("Hello, Gophers!"),
+		},
+	})
+
+	fmt.Println(string(*result))
+}
+```
