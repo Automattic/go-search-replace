@@ -1,4 +1,4 @@
-package main
+package searchreplace
 
 import (
 	"bytes"
@@ -31,7 +31,7 @@ func BenchmarkNoReplaceNew(b *testing.B) {
 	from := []byte("bananas")
 	to := []byte("apples")
 	for i := 0; i < b.N; i++ {
-		fixLine(&line, []*Replacement{
+		FixLine(&line, []*Replacement{
 			{
 				From: from,
 				To:   to,
@@ -59,7 +59,7 @@ func BenchmarkSimpleReplaceNew(b *testing.B) {
 	from := []byte("http:")
 	to := []byte("https:")
 	for i := 0; i < b.N; i++ {
-		fixLine(&line, []*Replacement{
+		FixLine(&line, []*Replacement{
 			{
 				From: from,
 				To:   to,
@@ -87,7 +87,7 @@ func BenchmarkSerializedReplaceNew(b *testing.B) {
 	from := []byte("http://automattic.com")
 	to := []byte("https://automattic.com")
 	for i := 0; i < b.N; i++ {
-		fixLine(&line, []*Replacement{
+		FixLine(&line, []*Replacement{
 			{
 				From: from,
 				To:   to,
@@ -228,7 +228,7 @@ func TestReplace(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			replaced := fixLine(&test.in, []*Replacement{
+			replaced := FixLine(&test.in, []*Replacement{
 				{
 					From: test.from,
 					To:   test.to,
@@ -283,7 +283,7 @@ func TestMultiReplace(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.testName, func(t *testing.T) {
-			replaced := fixLine(&test.in, test.replacements)
+			replaced := FixLine(&test.in, test.replacements)
 
 			if !bytes.Equal(*replaced, test.out) {
 				t.Error("Expected:", string(test.out), "Actual:", string(*replaced))
@@ -335,44 +335,6 @@ func TestFix(t *testing.T) {
 			fixed := fix(&test.from)
 			if !bytes.Equal(fixed, test.to) {
 				t.Error("Expected:", string(test.to), "Actual:", string(fixed))
-			}
-		})
-	}
-}
-
-func TestInput(t *testing.T) {
-	var tests = []struct {
-		testName string
-		in       string
-		valid    bool
-	}{
-		{
-			testName: "Simple domain name",
-			in:       "automattic.com",
-			valid:    true,
-		},
-		{
-			testName: "Short string",
-			in:       "s:",
-			valid:    false,
-		},
-		{
-			testName: "SQL string",
-			in:       "),(",
-			valid:    false,
-		},
-		{
-			testName: "Serialization structure",
-			in:       "a:4:",
-			valid:    false,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.testName, func(t *testing.T) {
-			valid := validInput(test.in, minInLength)
-			if valid != test.valid {
-				t.Error("Expected:", test.valid, "Actual:", valid)
 			}
 		})
 	}
