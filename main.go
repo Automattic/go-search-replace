@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/Automattic/go-search-replace/searchreplace"
 	"io"
 	"os"
 	"regexp"
 	"sync"
 	"unsafe"
+
+	"github.com/Automattic/go-search-replace/searchreplace"
 )
 
 const (
@@ -18,7 +19,7 @@ const (
 	minInLength  = 4
 	minOutLength = 2
 
-	version = "0.0.8-dev"
+	version = "0.0.9"
 )
 
 var (
