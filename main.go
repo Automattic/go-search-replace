@@ -81,7 +81,8 @@ func main() {
 	go func() {
 		defer wg.Done()
 
-		r := bufio.NewReaderSize(os.Stdin, 2*1024*1024)
+		bufferSize := 16 * 1024 * 1024 // 16 MB
+		r := bufio.NewReaderSize(os.Stdin, bufferSize)
 		for {
 			line, err := r.ReadBytes('\n')
 
