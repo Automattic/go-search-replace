@@ -19,7 +19,7 @@ const (
 	minInLength  = 4
 	minOutLength = 2
 
-	version = "0.0.9-dev"
+	version = "0.0.10"
 )
 
 var (
