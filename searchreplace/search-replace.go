@@ -189,7 +189,14 @@ func getUnescapedBytesIfEscaped(charPair []byte) []byte {
 		't':  '\t',
 		'b':  '\b',
 		'f':  '\f',
-		'0':  '\x00',
+		// This should actually be '\x00' instead of '0', but golang do strange things
+		// like terminating length calculations early, if we put a NULL terminator in an array
+		// likely because it thought that the NULL terminator is the end of an array in the memory.
+		//
+		// This is a workaround and doesn't match the function's name, but right now the function
+		// is only being used measuring how many bytes there are, if we unescape the escaped byte representation.
+		// Hence, this is a safe workaround for now.
+		'0': '0',
 	}
 
 	actualByte := unescapedMap[charPair[1]]
