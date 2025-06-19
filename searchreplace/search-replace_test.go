@@ -163,6 +163,14 @@ func TestReplace(t *testing.T) {
 			out: []byte(`s:15:\"http://🖖.com\";`),
 		},
 		{
+			testName: "NULL character (\\0)",
+			from:     []byte("EnvironmentObject"),
+			to:       []byte("Yeehaw"),
+
+			in:  []byte(`s:30:\"\0EnvironmentObject\0wp_site_url\";`),
+			out: []byte(`s:19:\"\0Yeehaw\0wp_site_url\";`),
+		},
+		{
 			testName: "search and replace with different lengths",
 
 			from: []byte("hello"),
