@@ -1,9 +1,19 @@
 {
   "features": {
+    "ghcr.io/devcontainers-extra/features/ripgrep:1": {
+      "version": "1.0.15",
+      "resolved": "ghcr.io/devcontainers-extra/features/ripgrep@sha256:0dfc0ac16f0d6aa754d006a138fd4cb4a62c245d308306edf8ad1b7a80b8fdf2",
+      "integrity": "sha256:0dfc0ac16f0d6aa754d006a138fd4cb4a62c245d308306edf8ad1b7a80b8fdf2"
+    },
     "ghcr.io/devcontainers/features/github-cli:1": {
       "version": "1.0.12",
       "resolved": "ghcr.io/devcontainers/features/github-cli@sha256:183d18b42de353e3689615fd21eb67427bc1f763c5b830c2798dcbb993da2049",
       "integrity": "sha256:183d18b42de353e3689615fd21eb67427bc1f763c5b830c2798dcbb993da2049"
+    },
+    "ghcr.io/devcontainers/features/node:2": {
+      "version": "2.0.0",
+      "resolved": "ghcr.io/devcontainers/features/node@sha256:fedd4c11f7adfb64283b578dddc7da906728daa25fa293351c9d913231acf12f",
+      "integrity": "sha256:fedd4c11f7adfb64283b578dddc7da906728daa25fa293351c9d913231acf12f"
     }
   }
 }
