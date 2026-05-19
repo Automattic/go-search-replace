@@ -24,6 +24,15 @@ be used in domain names. Since the most common usage for search-replace is
 changing domain names or switching http: to https:, this is an easy way to avoid
 otherwise complex issues.
 
+CLI replacement values may be bare tokens such as `sections` or `https`, scheme
+tokens `http:` and `https:`, bare hosts/domains with optional numeric ports and
+safe path segments such as `example.com:8080/wp-content`, or full `http://` and
+`https://` URLs with a host. Filesystem-style paths, traversal segments,
+unsupported schemes, userinfo, query strings, and fragments are rejected before
+input processing begins.
+
+At most one replacement pair may expand its input per invocation.
+
 ## Installation
 
 ### From Official Releases
