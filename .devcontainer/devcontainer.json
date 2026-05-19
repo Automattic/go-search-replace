@@ -28,7 +28,13 @@
 				"mhutchie.git-graph",
 				"huizhou.githd",
 				"Everspace.rightclick-git"
-			]
+			],
+			"settings": {
+				"chat.tools.terminal.terminalProfile.linux": {
+					"path": "/bin/sh",
+					"args": ["-c", "/usr/bin/bash --init-file \"$(code --locate-shell-integration-path bash)\""]
+				}
+			}
 		}
 	}
 }
