@@ -623,6 +623,11 @@ func TestValidateReplacementArgs(t *testing.T) {
 func TestValidationExitCodes(t *testing.T) {
 	binaryPath := buildMainBinary(t)
 
+	tooManyPairsArgs := make([]string, 0, (maxReplacementPairs+1)*2)
+	for i := 0; i <= maxReplacementPairs; i++ {
+		tooManyPairsArgs = append(tooManyPairsArgs, "from"+strconv.Itoa(i), "to"+strconv.Itoa(i))
+	}
+
 	tests := []struct {
 		testName string
 		args     []string
@@ -652,6 +657,12 @@ func TestValidationExitCodes(t *testing.T) {
 			args:     []string{"aaaa", "bbbbb", "cccc", "ddddd"},
 			wantCode: exitInvalidTo,
 			wantErr:  "only one expanding replacement pair",
+		},
+		{
+			testName: "too many replacement pairs",
+			args:     tooManyPairsArgs,
+			wantCode: exitUsage,
+			wantErr:  "Too many replacement pairs",
 		},
 	}
 

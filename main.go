@@ -185,7 +185,7 @@ func validateReplacementArgs(args []string) error {
 	}
 
 	if len(args)/2 > maxReplacementPairs {
-		return newReplacementArgError(exitInvalidFrom, "Too many replacement pairs: maximum is %d", maxReplacementPairs)
+		return newReplacementArgError(exitUsage, "Too many replacement pairs: maximum is %d", maxReplacementPairs)
 	}
 
 	seenFrom := map[string]bool{}
