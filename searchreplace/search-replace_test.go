@@ -131,19 +131,96 @@ func TestReplace(t *testing.T) {
 			in:  []byte(`('s:21:\"http://automattic.com\";'),('s:21:\"https://a8c.com\";')`),
 			out: []byte(`('s:22:\"https://automattic.com\";'),('s:21:\"https://a8c.com\";')`),
 		},
-		//TODO: Test disabled. This is a really hard problem to solve.
-		// Generally recovering from a 'syntax error' of a parser - which is what we have here, due to the wrong byte size for a8c.com,
-		// is probably impossible. It destroys all offsets and suddenly we lose track of where the tokenization is at.
-		// Self-recovery is prone to error, and might grab the token entrance at the wrong place.
-		//{
-		//	testName: "only fix updated strings, with bad data in between",
-		//
-		//	from: []byte("http://automattic.com"),
-		//	to:   []byte("https://automattic.com"),
-		//
-		//	in:  []byte(`('s:21:\"http://automattic.com\";'),('s:21:\"https://a8c.com\";'),('s:21:\"http://automattic.com\";')`),
-		//	out: []byte(`('s:22:\"https://automattic.com\";'),('s:21:\"https://a8c.com\";'),('s:22:\"https://automattic.com\";')`),
-		//},
+		{
+			testName: "malformed serialized string with close delimiter before ordinary text",
+
+			from: []byte("http://automattic.com"),
+			to:   []byte("https://automattic.com"),
+
+			in:  []byte(`s:999:\"http://automattic.com\"; http://automattic.com`),
+			out: []byte(`s:999:\"https://automattic.com\"; https://automattic.com`),
+		},
+		{
+			testName: "malformed serialized string before delimiter-like ordinary text",
+
+			from: []byte("http://automattic.com"),
+			to:   []byte("https://automattic.com"),
+
+			in:  []byte(`('s:999:\"broken'),('http://automattic.com\";'),('http://automattic.com')`),
+			out: []byte(`('s:999:\"broken'),('https://automattic.com\";'),('https://automattic.com')`),
+		},
+		{
+			testName: "malformed serialized string between valid serialized strings",
+
+			from: []byte("http://automattic.com"),
+			to:   []byte("https://automattic.com"),
+
+			in:  []byte(`('s:21:\"http://automattic.com\";'),('s:999:\"http://automattic.com\";'),('s:21:\"http://automattic.com\";')`),
+			out: []byte(`('s:22:\"https://automattic.com\";'),('s:999:\"https://automattic.com\";'),('s:22:\"https://automattic.com\";')`),
+		},
+		{
+			testName: "unterminated malformed serialized candidate before valid serialized string",
+
+			from: []byte("http://automattic.com"),
+			to:   []byte("https://automattic.com"),
+
+			in:  []byte(`s:999:\"http://automattic.com s:21:\"http://automattic.com\";`),
+			out: []byte(`s:999:\"https://automattic.com s:22:\"https://automattic.com\";`),
+		},
+		{
+			testName: "unterminated malformed serialized candidate before ordinary text",
+
+			from: []byte("http://automattic.com"),
+			to:   []byte("https://automattic.com"),
+
+			in:  []byte(`s:999:\"http://automattic.com and then http://automattic.com`),
+			out: []byte(`s:999:\"https://automattic.com and then https://automattic.com`),
+		},
+		{
+			testName: "overflowing serialized length before valid serialized string",
+
+			from: []byte("http://automattic.com"),
+			to:   []byte("https://automattic.com"),
+
+			in:  []byte(`s:999999999999999999999999999999:\"http://automattic.com s:21:\"http://automattic.com\";`),
+			out: []byte(`s:999999999999999999999999999999:\"https://automattic.com s:22:\"https://automattic.com\";`),
+		},
+		{
+			testName: "truncated escaped serialized prefix after ordinary text",
+
+			from: []byte("http://automattic.com"),
+			to:   []byte("https://automattic.com"),
+
+			in:  []byte(`before http://automattic.com s:1:\"`),
+			out: []byte(`before https://automattic.com s:1:\"`),
+		},
+		{
+			testName: "malformed serialized content with zero length before ordinary text",
+
+			from: []byte("http://automattic.com"),
+			to:   []byte("https://automattic.com"),
+
+			in:  []byte(`s:0:\"\\\"; http://automattic.com`),
+			out: []byte(`s:0:\"\\\"; https://automattic.com`),
+		},
+		{
+			testName: "serialized content ending with lone backslash before ordinary text",
+
+			from: []byte("http://automattic.com"),
+			to:   []byte("https://automattic.com"),
+
+			in:  []byte(`s:1:\"\\"; http://automattic.com`),
+			out: []byte(`s:1:\"\\"; https://automattic.com`),
+		},
+		{
+			testName: "only fix updated strings with bad data in between",
+
+			from: []byte("http://automattic.com"),
+			to:   []byte("https://automattic.com"),
+
+			in:  []byte(`('s:21:\"http://automattic.com\";'),('s:21:\"https://a8c.com\";'),('s:21:\"http://automattic.com\";')`),
+			out: []byte(`('s:22:\"https://automattic.com\";'),('s:21:\"https://a8c.com\";'),('s:22:\"https://automattic.com\";')`),
+		},
 		{
 			testName: "emoji from",
 

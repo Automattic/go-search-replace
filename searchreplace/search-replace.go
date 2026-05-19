@@ -37,8 +37,10 @@ func FixLine(line *[]byte, replacements []*Replacement) *[]byte {
 	for len(linePart) > 0 {
 		result, err := fixLineWithSerializedData(linePart, replacements)
 		if err != nil {
-			rebuiltLine = append(rebuiltLine, linePart...)
-			break
+			malformedPart, post := recoverFromSerializedParseError(linePart, replacements)
+			rebuiltLine = append(rebuiltLine, malformedPart...)
+			linePart = post
+			continue
 		}
 		rebuiltLine = append(rebuiltLine, result.Pre...)
 		rebuiltLine = append(rebuiltLine, result.SerializedPortion...)
@@ -58,6 +60,34 @@ func replaceByPart(part []byte, replacements []*Replacement) []byte {
 }
 
 var serializedStringPrefixRegexp = regexp.MustCompile(`s:(\d+):\\"`)
+
+func recoverFromSerializedParseError(linePart []byte, replacements []*Replacement) ([]byte, []byte) {
+	match := serializedStringPrefixRegexp.FindSubmatchIndex(linePart)
+	if match == nil {
+		return replaceByPart(linePart, replacements), []byte{}
+	}
+
+	serializedStart := match[0]
+	contentStart := match[1]
+	resumeIndex := malformedSerializedResumeIndex(linePart, serializedStart, contentStart)
+
+	rebuiltPart := replaceByPart(linePart[:serializedStart], replacements)
+	rebuiltPart = append(rebuiltPart, linePart[serializedStart:resumeIndex]...)
+
+	return rebuiltPart, linePart[resumeIndex:]
+}
+
+func malformedSerializedResumeIndex(linePart []byte, serializedStart int, contentStart int) int {
+	minResumeIndex := serializedStart + 1
+	if contentStart < minResumeIndex {
+		return minResumeIndex
+	}
+	if contentStart > len(linePart) {
+		return len(linePart)
+	}
+
+	return contentStart
+}
 
 func fixLineWithSerializedData(linePart []byte, replacements []*Replacement) (*SerializedReplaceResult, error) {
 
