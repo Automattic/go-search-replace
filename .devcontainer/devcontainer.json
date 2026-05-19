@@ -23,7 +23,11 @@
 				"GitHub.copilot",
 				"GitHub.copilot-chat",
 				"github.vscode-github-actions",
-				"ms-vsliveshare.vsliveshare"
+				"ms-vsliveshare.vsliveshare",
+				"phoihos.git-commit-message-editor",
+				"mhutchie.git-graph",
+				"huizhou.githd",
+				"Everspace.rightclick-git"
 			]
 		}
 	}
