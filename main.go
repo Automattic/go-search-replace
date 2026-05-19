@@ -74,49 +74,71 @@ func main() {
 		})
 	}
 
+	if code := run(os.Stdin, os.Stdout, os.Stderr, replacements); code != 0 {
+		os.Exit(code)
+		return
+	}
+}
+
+func run(input io.Reader, output io.Writer, errorOutput io.Writer, replacements []*searchreplace.Replacement) int {
+	if err := process(input, output, errorOutput, replacements); err != nil {
+		return 1
+	}
+
+	return 0
+}
+
+func process(input io.Reader, output io.Writer, errorOutput io.Writer, replacements []*searchreplace.Replacement) error {
 	var wg sync.WaitGroup
 	lines := make(chan chan []byte, 10)
+	readErrors := make(chan error, 1)
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
 		bufferSize := 16 * 1024 * 1024 // 16 MB
-		r := bufio.NewReaderSize(os.Stdin, bufferSize)
+		r := bufio.NewReaderSize(input, bufferSize)
 		for {
 			line, err := r.ReadBytes('\n')
 
-			if err != nil {
-				if err == io.EOF {
-					if 0 == len(line) {
-						break
-					}
-				} else {
-					fmt.Fprintln(os.Stderr, err.Error())
-					break
-				}
+			if len(line) > 0 {
+				wg.Add(1)
+				ch := make(chan []byte)
+				lines <- ch
+
+				go func(line *[]byte) {
+					defer wg.Done()
+					line = searchreplace.FixLine(line, replacements)
+					ch <- *line
+				}(&line)
 			}
 
-			wg.Add(1)
-			ch := make(chan []byte)
-			lines <- ch
-
-			go func(line *[]byte) {
-				defer wg.Done()
-				line = searchreplace.FixLine(line, replacements)
-				ch <- *line
-			}(&line)
+			if err != nil {
+				if err != io.EOF {
+					fmt.Fprintln(errorOutput, err.Error())
+					readErrors <- err
+				}
+				break
+			}
 		}
 	}()
 
 	go func() {
 		wg.Wait()
 		close(lines)
+		close(readErrors)
 	}()
 
 	for line := range lines {
-		fmt.Print(unsafeGetString(<-line))
+		fmt.Fprint(output, unsafeGetString(<-line))
 	}
+
+	if err, ok := <-readErrors; ok {
+		return err
+	}
+
+	return nil
 }
 
 func validInput(in string, length int) bool {
