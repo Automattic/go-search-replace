@@ -31,7 +31,12 @@ safe path segments such as `example.com:8080/wp-content`, or full `http://` and
 unsupported schemes, userinfo, query strings, and fragments are rejected before
 input processing begins.
 
-At most one replacement pair may expand its input per invocation.
+Replacement pairs are bounded to prevent output blow-up. Each `<to>` value may
+be at most 16× the byte length of its paired `<from>`, and at most one pair per
+invocation may expand its input (i.e. produce a `<to>` longer than its
+`<from>`). The same 16× factor also bounds the cumulative expansion across the
+ordered replacement chain, so later pairs cannot combine with earlier ones —
+including across replacement boundaries — to exceed the per-input limit.
 
 ## Installation
 
