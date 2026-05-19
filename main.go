@@ -86,7 +86,7 @@ func main() {
 	args := flag.Args()
 
 	if len(args) < 2 {
-		fmt.Fprintln(os.Stderr, "Usage: search-replace <from> <to>")
+		fmt.Fprintln(os.Stderr, "Usage: search-replace <from> <to> [<from> <to> ...]")
 		os.Exit(exitUsage)
 		return
 	}
