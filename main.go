@@ -120,7 +120,7 @@ func process(input io.Reader, output io.Writer, errorOutput io.Writer, replaceme
 			if err != nil {
 				if err != io.EOF {
 					if errors.Is(err, errInputLineTooLong) {
-						fmt.Fprintf(errorOutput, "%s of %d bytes\n", errInputLineTooLong, maxInputLineSize)
+						fmt.Fprintf(errorOutput, "%s of %d bytes\n", errInputLineTooLong.Error(), maxInputLineSize)
 					} else {
 						fmt.Fprintln(errorOutput, err.Error())
 					}
