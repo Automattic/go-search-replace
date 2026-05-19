@@ -381,6 +381,10 @@ func TestFixLineMalformedSerializedData(t *testing.T) {
 			testName: "overflowing declared byte count",
 			in:       []byte(`s:999999999999999999999999:\"x\";`),
 		},
+		{
+			testName: "negative-ish overflowing declared byte count via even-larger digits",
+			in:       []byte(`s:99999999999999999999999999999999999999999999999999:\"x\";`),
+		},
 	}
 
 	for _, test := range tests {

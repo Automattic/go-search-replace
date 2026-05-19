@@ -83,7 +83,10 @@ func fixLineWithSerializedData(linePart []byte, replacements []*Replacement) (*S
 
 	originalBytes := linePart[match[2]:match[3]]
 
-	originalByteSize, _ := strconv.Atoi(string(originalBytes))
+	originalByteSize, err := strconv.Atoi(string(originalBytes))
+	if err != nil {
+		return nil, fmt.Errorf("faulty serialized data: invalid declared byte count: %w", err)
+	}
 
 	contentStartIndex := match[1]
 
