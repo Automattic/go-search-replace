@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -18,16 +19,21 @@ const (
 	minInLength  = 4
 	minOutLength = 2
 
+	readBufferSize      = 64 * 1024
+	defaultMaxLineBytes = 256 * 1024 * 1024
+
 	version = "0.0.11"
 )
 
 var (
-	input = regexp.MustCompile(inputRe)
-	bad   = regexp.MustCompile(badInputRe)
+	input               = regexp.MustCompile(inputRe)
+	bad                 = regexp.MustCompile(badInputRe)
+	errInputLineTooLong = errors.New("input line exceeds maximum size")
 )
 
 func main() {
 	versionFlag := flag.Bool("version", false, "Show version information")
+	maxLineBytes := flag.Int("max-line-bytes", defaultMaxLineBytes, "Maximum input line size in bytes, excluding newline (0 means unlimited)")
 	flag.Parse()
 
 	if *versionFlag {
@@ -36,14 +42,18 @@ func main() {
 		return
 	}
 
-	if len(os.Args) < 3 {
+	args := flag.Args()
+	if *maxLineBytes < 0 {
+		fmt.Fprintln(os.Stderr, "max-line-bytes must not be negative")
+		os.Exit(1)
+	}
+	if len(args) < 2 {
 		fmt.Fprintln(os.Stderr, "Usage: search-replace <from> <to>")
 		os.Exit(1)
 		return
 	}
 
 	var replacements []*searchreplace.Replacement
-	args := os.Args[1:]
 
 	if len(args)%2 > 0 {
 		fmt.Fprintln(os.Stderr, "All replacements must have a <from> and <to> value")
@@ -73,21 +83,21 @@ func main() {
 		})
 	}
 
-	if code := run(os.Stdin, os.Stdout, os.Stderr, replacements); code != 0 {
+	if code := run(os.Stdin, os.Stdout, os.Stderr, replacements, *maxLineBytes); code != 0 {
 		os.Exit(code)
 		return
 	}
 }
 
-func run(input io.Reader, output io.Writer, errorOutput io.Writer, replacements []*searchreplace.Replacement) int {
-	if err := process(input, output, errorOutput, replacements); err != nil {
+func run(input io.Reader, output io.Writer, errorOutput io.Writer, replacements []*searchreplace.Replacement, maxLineBytes int) int {
+	if err := process(input, output, errorOutput, replacements, maxLineBytes); err != nil {
 		return 1
 	}
 
 	return 0
 }
 
-func process(input io.Reader, output io.Writer, errorOutput io.Writer, replacements []*searchreplace.Replacement) error {
+func process(input io.Reader, output io.Writer, errorOutput io.Writer, replacements []*searchreplace.Replacement, maxLineBytes int) error {
 	var wg sync.WaitGroup
 	lines := make(chan chan []byte, 10)
 	readErrors := make(chan error, 1)
@@ -96,10 +106,9 @@ func process(input io.Reader, output io.Writer, errorOutput io.Writer, replaceme
 	go func() {
 		defer wg.Done()
 
-		bufferSize := 16 * 1024 * 1024 // 16 MB
-		r := bufio.NewReaderSize(input, bufferSize)
+		r := bufio.NewReaderSize(input, readBufferSize)
 		for {
-			line, err := r.ReadBytes('\n')
+			line, err := readLine(r, maxLineBytes)
 
 			if len(line) > 0 {
 				wg.Add(1)
@@ -115,7 +124,11 @@ func process(input io.Reader, output io.Writer, errorOutput io.Writer, replaceme
 
 			if err != nil {
 				if err != io.EOF {
-					fmt.Fprintln(errorOutput, err.Error())
+					if errors.Is(err, errInputLineTooLong) {
+						fmt.Fprintf(errorOutput, "%s of %d bytes\n", errInputLineTooLong.Error(), maxLineBytes)
+					} else {
+						fmt.Fprintln(errorOutput, err.Error())
+					}
 					readErrors <- err
 				}
 				break
@@ -138,6 +151,34 @@ func process(input io.Reader, output io.Writer, errorOutput io.Writer, replaceme
 	}
 
 	return nil
+}
+
+func readLine(r *bufio.Reader, maxSize int) ([]byte, error) {
+	if maxSize == 0 {
+		return r.ReadBytes('\n')
+	}
+	var line []byte
+
+	for {
+		fragment, err := r.ReadSlice('\n')
+		if len(fragment) > 0 {
+			contentLength := len(fragment)
+			if fragment[len(fragment)-1] == '\n' {
+				contentLength--
+			}
+			if contentLength > maxSize-len(line) {
+				return nil, errInputLineTooLong
+			}
+
+			line = append(line, fragment...)
+		}
+
+		if err == bufio.ErrBufferFull {
+			continue
+		}
+
+		return line, err
+	}
 }
 
 func validInput(in string, length int) bool {

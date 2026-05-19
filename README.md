@@ -30,6 +30,13 @@ custom-payload lengths in `O:` or `C:` tokens if replacements affect them. Its
 escape accounting assumes MySQL backslash escaping; dumps using
 `NO_BACKSLASH_ESCAPES` are not supported by this repair logic.
 
+Input lines are limited to 256 MiB by default, excluding the terminating
+newline. Pass `-max-line-bytes=N` before the replacement arguments to choose a
+different limit, or `-max-line-bytes=0` to disable it. On an error the command
+exits nonzero, but output may already contain earlier lines. Scripts must check
+the exit status and discard incomplete output. This limit applies to input
+lines, not MySQL packets, processed output, or total memory use.
+
 ## Installation
 
 ### From Official Releases

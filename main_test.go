@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
+	"io"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -73,7 +75,7 @@ func TestRunReturnsNonZeroOnReadError(t *testing.T) {
 
 	var out bytes.Buffer
 	var errOut bytes.Buffer
-	code := run(stdin, &out, &errOut, testReplacements())
+	code := run(stdin, &out, &errOut, testReplacements(), 0)
 
 	if code != 1 {
 		t.Errorf("Expected exit code 1, got %d", code)
@@ -99,7 +101,7 @@ func TestRunProcessesPartialLineReturnedWithReadError(t *testing.T) {
 
 	var out bytes.Buffer
 	var errOut bytes.Buffer
-	code := run(stdin, &out, &errOut, testReplacements())
+	code := run(stdin, &out, &errOut, testReplacements(), 0)
 
 	if code != 1 {
 		t.Errorf("Expected exit code 1, got %d", code)
@@ -137,7 +139,7 @@ func TestRunReturnsZeroAtEOF(t *testing.T) {
 		t.Run(test.testName, func(t *testing.T) {
 			var out bytes.Buffer
 			var errOut bytes.Buffer
-			code := run(strings.NewReader(test.in), &out, &errOut, testReplacements())
+			code := run(strings.NewReader(test.in), &out, &errOut, testReplacements(), 0)
 
 			if code != 0 {
 				t.Errorf("Expected exit code 0, got %d", code)
@@ -205,6 +207,82 @@ func TestMultipleReplaceWithoutNewlineAtEOF(t *testing.T) {
 	input := "Space, the final frontier!\nCheck out: http://uss-enterprise.com/decks/10/sections/forward"
 	expected := "Space, the final frontier!\nCheck out: warp://ncc-1701-d.space/decks/10/areas/forward"
 	doMainTest(t, input, expected, mainArgs)
+}
+
+func TestInputLineLongerThanLimitFails(t *testing.T) {
+	mainArgs := []string{
+		"-max-line-bytes=16",
+		"http://uss-enterprise.com",
+		"https://ncc-1701-d.space",
+	}
+
+	execArgs := append([]string{"run", basePath}, mainArgs...)
+	cmd := exec.Command("go", execArgs...)
+
+	cmd.Stdin = strings.NewReader("first\n" + strings.Repeat("x", 17))
+
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err == nil {
+		t.Fatal("expected command to fail for an input line over the maximum size")
+	}
+
+	if out.String() != "first\n" {
+		t.Errorf("expected earlier line on stdout, got %q", out.String())
+	}
+
+	if !strings.Contains(stderr.String(), "input line exceeds maximum size") {
+		t.Errorf("expected line size error, got %q", stderr.String())
+	}
+}
+
+func TestReadLineAcceptsMaximumSize(t *testing.T) {
+	for _, input := range []string{strings.Repeat("x", 32), strings.Repeat("x", 32) + "\n"} {
+		reader := bufio.NewReaderSize(strings.NewReader(input), 16)
+		line, err := readLine(reader, 32)
+		if err != nil && err != io.EOF {
+			t.Fatalf("read %q: %v", input, err)
+		}
+		if string(line) != input {
+			t.Fatalf("got %q, want %q", line, input)
+		}
+	}
+}
+
+func TestReadLineLimitAndUnlimited(t *testing.T) {
+	input := strings.Repeat("x", 33) + "\n"
+	line, err := readLine(bufio.NewReaderSize(strings.NewReader(input), 16), 32)
+	if !errors.Is(err, errInputLineTooLong) || line != nil {
+		t.Fatalf("expected oversized line error, got %q, %v", line, err)
+	}
+	line, err = readLine(bufio.NewReaderSize(strings.NewReader(input), 16), 0)
+	if err != nil || string(line) != input {
+		t.Fatalf("unlimited read returned %q, %v", line, err)
+	}
+}
+
+func TestUnlimitedReadAcceptsFormerLimit(t *testing.T) {
+	input := strings.Repeat("x", 16*1024*1024+1)
+	line, err := readLine(bufio.NewReaderSize(strings.NewReader(input), readBufferSize), 0)
+	if err != io.EOF || len(line) != len(input) {
+		t.Fatalf("got %d bytes and %v; want %d bytes and EOF", len(line), err, len(input))
+	}
+}
+
+func TestDefaultLineLimitRejectsOversizedInput(t *testing.T) {
+	cmd := exec.Command("go", "run", basePath, "xxxx", "yy")
+	cmd.Stdin = strings.NewReader(strings.Repeat("x", defaultMaxLineBytes+1))
+	var out, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &stderr
+	if err := cmd.Run(); err == nil {
+		t.Fatal("expected an oversized line to fail with the default limit")
+	}
+	if out.Len() != 0 || !strings.Contains(stderr.String(), "268435456 bytes") {
+		t.Fatalf("got stdout %q and stderr %q", out.String(), stderr.String())
+	}
 }
 
 func TestSerializedReplaceWithCss(t *testing.T) {
