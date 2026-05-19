@@ -114,6 +114,29 @@ func TestReplace(t *testing.T) {
 			out: []byte(`s:22:\"https://automattic.com\";`),
 		},
 		{
+			testName: "raw serialized string",
+
+			from: []byte("http://automattic.com"),
+			to:   []byte("https://automattic.com"),
+
+			in:  []byte(`s:21:"http://automattic.com";`),
+			out: []byte(`s:22:"https://automattic.com";`),
+		},
+		{
+			testName: "raw serialized string with literal backslash n",
+			from:     []byte(`break`),
+			to:       []byte(`pause`),
+			in:       []byte(`s:11:"line\nbreak";`),
+			out:      []byte(`s:11:"line\npause";`),
+		},
+		{
+			testName: "raw serialized string with SQL escaped backslash n",
+			from:     []byte(`break`),
+			to:       []byte(`pause`),
+			in:       []byte(`s:10:"line\nbreak";`),
+			out:      []byte(`s:10:"line\npause";`),
+		},
+		{
 			testName: "URL in SQL",
 
 			from: []byte("http://automattic.com"),
@@ -264,6 +287,55 @@ func TestReplace(t *testing.T) {
 			out:      []byte(`a:2:{s:3:\"key\";s:5:\"value\";s:3:\"css\";s:206:\"body { color: #123456;\r\nborder-bottom: none; }\r\ndiv.bg { background: url('https://ncc-1701-d.space/wp-content/uploads/main-bg.gif');\r\n  background-position: left center;\r\n    background-repeat: no-repeat; }\";}`),
 		},
 		{
+			testName: "nested array and object-like payload strings",
+			from:     []byte(`http://automattic.com`),
+			to:       []byte(`https://automattic.com`),
+			in:       []byte(`a:2:{s:3:"url";s:21:"http://automattic.com";O:8:"stdClass":1:{s:3:"url";s:21:"http://automattic.com";}}`),
+			out:      []byte(`a:2:{s:3:"url";s:22:"https://automattic.com";O:8:"stdClass":1:{s:3:"url";s:22:"https://automattic.com";}}`),
+		},
+		{
+			testName: "non-string tokens adjacent to string",
+			from:     []byte(`http://automattic.com`),
+			to:       []byte(`https://automattic.com`),
+			in:       []byte(`i:123;s:21:"http://automattic.com";b:1;N;d:1.5;`),
+			out:      []byte(`i:123;s:22:"https://automattic.com";b:1;N;d:1.5;`),
+		},
+		{
+			testName: "empty string with ordinary text",
+			from:     []byte(`http://automattic.com`),
+			to:       []byte(`https://automattic.com`),
+			in:       []byte(`s:0:""; http://automattic.com`),
+			out:      []byte(`s:0:""; https://automattic.com`),
+		},
+		{
+			testName: "raw delimiter-like content before real terminator",
+			from:     []byte(`old`),
+			to:       []byte(`newer`),
+			in:       []byte(`s:18:"alpha "; old omega";`),
+			out:      []byte(`s:20:"alpha "; newer omega";`),
+		},
+		{
+			testName: "malformed serialized string left unchanged and later ordinary text replaced",
+			from:     []byte(`http://automattic.com`),
+			to:       []byte(`https://automattic.com`),
+			in:       []byte(`s:99:"http://automattic.com"; http://automattic.com`),
+			out:      []byte(`s:99:"http://automattic.com"; https://automattic.com`),
+		},
+		{
+			testName: "overflowing serialized length left unchanged and later ordinary text replaced",
+			from:     []byte(`http://automattic.com`),
+			to:       []byte(`https://automattic.com`),
+			in:       []byte(`s:999999999999999999999999:"http://automattic.com"; http://automattic.com`),
+			out:      []byte(`s:999999999999999999999999:"http://automattic.com"; https://automattic.com`),
+		},
+		{
+			testName: "multiple mixed serialized strings on one line",
+			from:     []byte(`old`),
+			to:       []byte(`newer`),
+			in:       []byte(`s:3:"old";|s:3:\"old\";`),
+			out:      []byte(`s:5:"newer";|s:5:\"newer\";`),
+		},
+		{
 			testName: "string encoded by both MySQL and PHP",
 
 			from: []byte(`http:\\/\\/example\\.com`),
@@ -324,6 +396,38 @@ func TestReplace(t *testing.T) {
 				t.Error("Expected:", string(test.out), "Actual:", string(*replaced))
 			}
 		})
+	}
+}
+
+func TestFixLinePreservesLiteralNullBytes(t *testing.T) {
+	input := []byte{'s', ':', '5', ':', '"', 0, 'o', 'l', 'd', 0, '"', ';'}
+	expected := []byte{'s', ':', '7', ':', '"', 0, 'n', 'e', 'w', 'e', 'r', 0, '"', ';'}
+
+	replaced := FixLine(&input, []*Replacement{
+		{
+			From: []byte("old"),
+			To:   []byte("newer"),
+		},
+	})
+
+	if !bytes.Equal(*replaced, expected) {
+		t.Error("Expected:", expected, "Actual:", *replaced)
+	}
+}
+
+func TestFixLinePreservesInvalidUTF8Bytes(t *testing.T) {
+	input := []byte{'s', ':', '4', ':', '"', 0xff, 'o', 'l', 'd', '"', ';'}
+	expected := []byte{'s', ':', '6', ':', '"', 0xff, 'n', 'e', 'w', 'e', 'r', '"', ';'}
+
+	replaced := FixLine(&input, []*Replacement{
+		{
+			From: []byte("old"),
+			To:   []byte("newer"),
+		},
+	})
+
+	if !bytes.Equal(*replaced, expected) {
+		t.Error("Expected:", expected, "Actual:", *replaced)
 	}
 }
 
@@ -402,6 +506,16 @@ func TestFix(t *testing.T) {
 			testName: "Line break",
 			from:     []byte(`s:0:\"line\\nbreak\";`),
 			to:       []byte(`s:11:\"line\\nbreak\";`),
+		},
+		{
+			testName: "Raw line break with literal backslash n",
+			from:     []byte(`s:0:"line\nbreak";`),
+			to:       []byte(`s:11:"line\nbreak";`),
+		},
+		{
+			testName: "Raw line break with SQL escaped backslash n",
+			from:     []byte(`s:10:"line\nbreak";`),
+			to:       []byte(`s:10:"line\nbreak";`),
 		},
 		{
 			testName: "Escaped URL",

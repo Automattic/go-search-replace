@@ -2,20 +2,30 @@ package searchreplace
 
 import (
 	"bytes"
-	"fmt"
-	"regexp"
 	"strconv"
 )
 
+type serializedQuoteStyle int
+
+type serializedLengthMode int
+
 const (
-	searchRe  = `s:\d+:\\\".*?\\\";`
-	replaceRe = `s:\d+:\\\"(.*?)\\\";`
+	rawSerializedQuote serializedQuoteStyle = iota
+	escapedSerializedQuote
 )
 
-var (
-	search  = regexp.MustCompile(searchRe)
-	replace = regexp.MustCompile(replaceRe)
+const (
+	sqlSerializedLength serializedLengthMode = iota
+	literalSerializedLength
 )
+
+type serializedStringToken struct {
+	end          int
+	contentStart int
+	contentEnd   int
+	quoteStyle   serializedQuoteStyle
+	lengthMode   serializedLengthMode
+}
 
 // Replacement has two fields (both byte slices): "From" & "To"
 type Replacement struct {
@@ -30,21 +40,35 @@ type SerializedReplaceResult struct {
 }
 
 func FixLine(line *[]byte, replacements []*Replacement) *[]byte {
-	linePart := *line
+	originalLine := *line
+	rebuiltLine := make([]byte, 0, len(originalLine))
+	searchStart := 0
 
-	var rebuiltLine []byte
+	for searchStart < len(originalLine) {
+		serializedStart := findSerializedStringCandidate(originalLine, searchStart)
+		if serializedStart == -1 {
+			rebuiltLine = append(rebuiltLine, replaceByPart(originalLine[searchStart:], replacements)...)
+			break
+		}
 
-	for len(linePart) > 0 {
-		result, err := fixLineWithSerializedData(linePart, replacements)
-		if err != nil {
-			malformedPart, post := recoverFromSerializedParseError(linePart, replacements)
-			rebuiltLine = append(rebuiltLine, malformedPart...)
-			linePart = post
+		rebuiltLine = append(rebuiltLine, replaceByPart(originalLine[searchStart:serializedStart], replacements)...)
+
+		serializedString, failureEnd, ok := parseSerializedStringAt(originalLine, serializedStart)
+		if !ok {
+			if failureEnd <= serializedStart {
+				failureEnd = serializedStart + 1
+			}
+			if failureEnd > len(originalLine) {
+				failureEnd = len(originalLine)
+			}
+
+			rebuiltLine = append(rebuiltLine, originalLine[serializedStart:failureEnd]...)
+			searchStart = failureEnd
 			continue
 		}
-		rebuiltLine = append(rebuiltLine, result.Pre...)
-		rebuiltLine = append(rebuiltLine, result.SerializedPortion...)
-		linePart = result.Post
+
+		rebuiltLine = appendReplacedSerializedString(rebuiltLine, originalLine, serializedString, replacements)
+		searchStart = serializedString.end
 	}
 
 	*line = rebuiltLine
@@ -59,204 +83,33 @@ func replaceByPart(part []byte, replacements []*Replacement) []byte {
 	return part
 }
 
-var serializedStringPrefixRegexp = regexp.MustCompile(`s:(\d+):\\"`)
-
-var serializedStringTerminator = []byte(`\";`)
-
-func recoverFromSerializedParseError(linePart []byte, replacements []*Replacement) ([]byte, []byte) {
-	match := serializedStringPrefixRegexp.FindSubmatchIndex(linePart)
-	if match == nil {
-		return replaceByPart(linePart, replacements), []byte{}
-	}
-
-	serializedStart := match[0]
-	contentStart := match[1]
-	resumeIndex := malformedSerializedResumeIndex(linePart, serializedStart, contentStart)
-
-	rebuiltPart := replaceByPart(linePart[:serializedStart], replacements)
-	rebuiltPart = append(rebuiltPart, linePart[serializedStart:resumeIndex]...)
-
-	return rebuiltPart, linePart[resumeIndex:]
-}
-
-func malformedSerializedResumeIndex(linePart []byte, serializedStart int, contentStart int) int {
-	searchStart := contentStart
+func malformedSerializedFailureEnd(data []byte, serializedStart int, serializedString serializedStringToken) int {
+	searchStart := serializedString.contentStart
 	if searchStart < serializedStart+1 {
 		searchStart = serializedStart + 1
 	}
-	if searchStart > len(linePart) {
-		return len(linePart)
+	if searchStart > len(data) {
+		return len(data)
 	}
 
-	resumeIndex := len(linePart)
-
-	if terminatorIndex := bytes.Index(linePart[searchStart:], serializedStringTerminator); terminatorIndex >= 0 {
-		resumeIndex = searchStart + terminatorIndex + len(serializedStringTerminator)
+	failureEnd := bestEffortSerializedEnd(data, serializedString)
+	if nextSerializedStart := findSerializedStringCandidate(data, searchStart); nextSerializedStart != -1 && nextSerializedStart < failureEnd {
+		failureEnd = nextSerializedStart
 	}
 
-	if match := serializedStringPrefixRegexp.FindIndex(linePart[searchStart:]); match != nil {
-		prefixIndex := searchStart + match[0]
-		if prefixIndex < resumeIndex {
-			resumeIndex = prefixIndex
-		}
-	}
-
-	return resumeIndex
-}
-
-func fixLineWithSerializedData(linePart []byte, replacements []*Replacement) (*SerializedReplaceResult, error) {
-
-	// find starting point in the line
-	// We're not checking if we found the serialized string prefix inside a quote or not.
-	// Currently skipping that scenario because it seems unlikely to find it outside.
-	match := serializedStringPrefixRegexp.FindSubmatchIndex(linePart)
-	if match == nil {
-		return &SerializedReplaceResult{
-			Pre:               replaceByPart(linePart, replacements),
-			SerializedPortion: []byte{},
-			Post:              []byte{},
-		}, nil
-	}
-
-	pre := append([]byte{}, linePart[:match[0]]...)
-
-	pre = replaceByPart(pre, replacements)
-
-	if pre == nil {
-		pre = []byte{}
-	}
-
-	originalBytes := linePart[match[2]:match[3]]
-
-	originalByteSize, err := strconv.Atoi(string(originalBytes))
-	if err != nil {
-		return nil, fmt.Errorf("faulty serialized data: invalid declared byte count: %w", err)
-	}
-
-	contentStartIndex := match[1]
-
-	currentContentIndex := contentStartIndex
-
-	contentByteCount := 0
-
-	contentEndIndex := 0
-
-	var nextSliceIndex int
-
-	backslash := byte('\\')
-	semicolon := byte(';')
-	quote := byte('"')
-	nextSliceFound := false
-
-	// let's find where the content actually ends.
-	// it should end when the unescaped value is `";`
-	for currentContentIndex < len(linePart) {
-		char := linePart[currentContentIndex]
-		if char == backslash && contentByteCount < originalByteSize {
-			if currentContentIndex+1 >= len(linePart) {
-				return nil, fmt.Errorf("faulty serialized data: incomplete escaped byte pair")
-			}
-
-			unescapedBytePair := getUnescapedBytesIfEscaped(linePart[currentContentIndex : currentContentIndex+2])
-			// if we get the byte pair without the backslash, it corresponds to a byte
-			contentByteCount += len(unescapedBytePair)
-
-			// content index count remains the same.
-			currentContentIndex += 2
-			continue
-		}
-
-		if char == backslash && contentByteCount >= originalByteSize {
-			if currentContentIndex+2 >= len(linePart) {
-				return nil, fmt.Errorf("faulty serialized data: incomplete serialized data terminator")
-			}
-
-			secondChar := linePart[currentContentIndex+1]
-			thirdChar := linePart[currentContentIndex+2]
-
-			if secondChar == quote && thirdChar == semicolon {
-
-				// we're at backslash
-
-				// index of the beginning of the next slice
-				nextSliceIndex = currentContentIndex + 3
-				// we're at backslash, so we need to minus 1 to get the index where the content finishes
-				contentEndIndex = currentContentIndex - 1
-				nextSliceFound = true
-				break
-			}
-		}
-
-		if contentByteCount > originalByteSize {
-			return nil, fmt.Errorf("faulty serialized data: calculated byte count does not match given data size")
-		}
-
-		contentByteCount++
-		currentContentIndex++
-	}
-
-	if nextSliceFound == false {
-		return nil, fmt.Errorf("faulty serialized data: end of serialized data not found")
-	}
-
-	content := append([]byte{}, linePart[contentStartIndex:contentEndIndex+1]...)
-
-	content = replaceByPart(content, replacements)
-
-	contentLength := len(unescapeContent(content))
-
-	// and we rebuild the string
-	rebuiltSerializedString := "s:" + strconv.Itoa(contentLength) + ":\\\"" + string(content) + "\\\";"
-
-	result := SerializedReplaceResult{
-		Pre:               pre,
-		SerializedPortion: []byte(rebuiltSerializedString),
-		Post:              linePart[nextSliceIndex:],
-	}
-
-	return &result, nil
+	return failureEnd
 }
 
 func getUnescapedBytesIfEscaped(charPair []byte) []byte {
-
-	backslash := byte('\\')
-
-	if len(charPair) < 2 {
+	if len(charPair) < 2 || charPair[0] != '\\' {
 		return charPair
 	}
 
-	// if the first byte is not a backslash, we don't need to do anything - we'll return the bytes
-	// as per the function name, we'll return both bytes, or return one byte if one byte is actually an escape character
-	if charPair[0] != backslash {
-		return charPair
-	}
-
-	unescapedMap := map[byte]byte{
-		'\\': '\\',
-		'\'': '\'',
-		'"':  '"',
-		'n':  '\n',
-		'r':  '\r',
-		't':  '\t',
-		'b':  '\b',
-		'f':  '\f',
-		// This should actually be '\x00' instead of '0', but golang do strange things
-		// like terminating length calculations early, if we put a NULL terminator in an array
-		// likely because it thought that the NULL terminator is the end of an array in the memory.
-		//
-		// This is a workaround and doesn't match the function's name, but right now the function
-		// is only being used measuring how many bytes there are, if we unescape the escaped byte representation.
-		// Hence, this is a safe workaround for now.
-		'0': '0',
-	}
-
-	actualByte := unescapedMap[charPair[1]]
-
-	if actualByte != 0 {
+	actualByte, ok := sqlEscapedByte(charPair[1])
+	if ok {
 		return []byte{actualByte}
 	}
 
-	// what if it's not a valid escape? Do nothing - it's considered as already escaped
 	return charPair
 }
 
@@ -264,22 +117,12 @@ func unescapeContent(escaped []byte) []byte {
 	unescapedBytes := make([]byte, 0, len(escaped))
 	index := 0
 
-	// only applies to content of a string - do not apply to raw mysql query
-	// tested with php -i, mysql client, and mysqldump and mydumper.
-	// 1. mysql translates certain bytes to `\<char>` i.e. `\n`. So these needs unescaping to get the correct byte length. See `getUnescapedBytesIfEscaped`
-	// 2. PHP serialize does not convert raw bytes into `\<char>` - they're as-is, so we don't need to take into account of escaped value in byte length calculation.
-
-	backslash := byte('\\')
-
 	for index < len(escaped) {
-
-		if escaped[index] == backslash && index+1 < len(escaped) {
-			unescapedBytePair := getUnescapedBytesIfEscaped(escaped[index : index+2])
-			byteLength := len(unescapedBytePair)
-
-			if byteLength == 1 {
-				unescapedBytes = append(unescapedBytes, unescapedBytePair...)
-				index = index + 2
+		if len(escaped[index:]) >= 2 && escaped[index] == '\\' {
+			actualByte, ok := sqlEscapedByte(escaped[index+1])
+			if ok {
+				unescapedBytes = append(unescapedBytes, actualByte)
+				index += 2
 				continue
 			}
 		}
@@ -292,51 +135,292 @@ func unescapeContent(escaped []byte) []byte {
 }
 
 func replaceAndFix(line *[]byte, replacements []*Replacement) *[]byte {
-	for _, replacement := range replacements {
-		if !bytes.Contains(*line, replacement.From) {
-			continue
-		}
-
-		// Find/replace from->to
-		*line = bytes.Replace(*line, replacement.From, replacement.To, -1)
-
-		// Fix serialized string lengths
-		*line = search.ReplaceAllFunc(*line, func(match []byte) []byte {
-			// Skip fixing if we didn't replace anything
-			if !bytes.Contains(match, replacement.To) {
-				return match
-			}
-
-			return fix(&match)
-		})
-	}
-
-	return line
+	return FixLine(line, replacements)
 }
 
 func fix(match *[]byte) []byte {
-	parts := replace.FindSubmatch(*match)
-
-	if len(parts) != 2 {
-		// This looks wrong, don't touch anything
+	serializedStart := findSerializedStringCandidate(*match, 0)
+	if serializedStart != 0 {
 		return *match
 	}
 
-	// Get string length - number of escaped characters and avoid double counting escaped \
-	length := strconv.Itoa(len(parts[1]) - (bytes.Count(parts[1], []byte(`\`)) - bytes.Count(parts[1], []byte(`\\`))))
+	serializedString, _, ok := parseSerializedStringAt(*match, 0)
+	if ok && serializedString.end == len(*match) {
+		return appendReplacedSerializedString(nil, *match, serializedString, nil)
+	}
 
-	// Allocate enough memory for the string so appending won't resize it
-	// length of the string +
-	// length of constant characters +
-	// number of digits in the "length" component
-	replaced := make([]byte, 0, len(parts[1])+8+len(length))
+	serializedString, ok = parseSerializedStringByDelimiter(*match)
+	if !ok {
+		return *match
+	}
 
-	// Build the string
-	replaced = append(replaced, []byte("s:")...)
-	replaced = append(replaced, []byte(length)...)
-	replaced = append(replaced, ':')
-	replaced = append(replaced, []byte("\\\"")...)
-	replaced = append(replaced, parts[1]...)
-	replaced = append(replaced, []byte("\\\";")...)
-	return replaced
+	return appendReplacedSerializedString(nil, *match, serializedString, nil)
+}
+
+func findSerializedStringCandidate(data []byte, offset int) int {
+	for candidateStart := offset; candidateStart+3 < len(data); candidateStart++ {
+		if data[candidateStart] != 's' || data[candidateStart+1] != ':' {
+			continue
+		}
+
+		lengthStart := candidateStart + 2
+		if !isDigit(data[lengthStart]) {
+			continue
+		}
+
+		lengthEnd := lengthStart
+		for lengthEnd < len(data) && isDigit(data[lengthEnd]) {
+			lengthEnd++
+		}
+
+		if lengthEnd >= len(data) || data[lengthEnd] != ':' {
+			continue
+		}
+
+		quoteStart := lengthEnd + 1
+		if quoteStart >= len(data) {
+			continue
+		}
+
+		if data[quoteStart] == '"' {
+			return candidateStart
+		}
+
+		if quoteStart+1 < len(data) && data[quoteStart] == '\\' && data[quoteStart+1] == '"' {
+			return candidateStart
+		}
+	}
+
+	return -1
+}
+
+func parseSerializedStringAt(data []byte, start int) (serializedStringToken, int, bool) {
+	serializedString := serializedStringToken{}
+	lengthStart := start + 2
+	lengthEnd := lengthStart
+
+	for lengthEnd < len(data) && isDigit(data[lengthEnd]) {
+		lengthEnd++
+	}
+
+	if lengthStart == lengthEnd || lengthEnd >= len(data) || data[lengthEnd] != ':' {
+		return serializedString, start + 1, false
+	}
+
+	quoteStart := lengthEnd + 1
+	if quoteStart >= len(data) {
+		return serializedString, start + 1, false
+	}
+
+	if data[quoteStart] == '"' {
+		serializedString.quoteStyle = rawSerializedQuote
+		serializedString.contentStart = quoteStart + 1
+	} else if quoteStart+1 < len(data) && data[quoteStart] == '\\' && data[quoteStart+1] == '"' {
+		serializedString.quoteStyle = escapedSerializedQuote
+		serializedString.contentStart = quoteStart + 2
+	} else {
+		return serializedString, start + 1, false
+	}
+
+	declaredLength, err := strconv.Atoi(string(data[lengthStart:lengthEnd]))
+	if err != nil {
+		return serializedString, malformedSerializedFailureEnd(data, start, serializedString), false
+	}
+
+	if serializedString.quoteStyle == escapedSerializedQuote {
+		serializedString.lengthMode = sqlSerializedLength
+		parsedString, _, ok := parseSerializedStringContent(data, serializedString, declaredLength)
+		if ok {
+			return parsedString, parsedString.end, true
+		}
+
+		return parsedString, malformedSerializedFailureEnd(data, start, serializedString), false
+	}
+
+	serializedString.lengthMode = sqlSerializedLength
+	parsedString, _, ok := parseSerializedStringContent(data, serializedString, declaredLength)
+	if ok {
+		return parsedString, parsedString.end, true
+	}
+
+	serializedString.lengthMode = literalSerializedLength
+	parsedString, _, ok = parseSerializedStringContent(data, serializedString, declaredLength)
+	if ok {
+		return parsedString, parsedString.end, true
+	}
+
+	return parsedString, malformedSerializedFailureEnd(data, start, serializedString), false
+}
+
+func parseSerializedStringContent(data []byte, serializedString serializedStringToken, declaredLength int) (serializedStringToken, int, bool) {
+	contentIndex := serializedString.contentStart
+	contentLength := 0
+	for contentLength < declaredLength {
+		if contentIndex >= len(data) {
+			return serializedString, bestEffortSerializedEnd(data, serializedString), false
+		}
+
+		contentIndex += encodedByteLength(data[contentIndex:], serializedString.lengthMode)
+		contentLength++
+	}
+
+	serializedString.contentEnd = contentIndex
+	if serializedCloseMatches(data, serializedString) {
+		serializedString.end = contentIndex + serializedCloseLength(serializedString.quoteStyle)
+		return serializedString, serializedString.end, true
+	}
+
+	return serializedString, bestEffortSerializedEnd(data, serializedString), false
+}
+
+func parseSerializedStringByDelimiter(data []byte) (serializedStringToken, bool) {
+	serializedString := serializedStringToken{}
+	lengthStart := 2
+	lengthEnd := lengthStart
+
+	for lengthEnd < len(data) && isDigit(data[lengthEnd]) {
+		lengthEnd++
+	}
+
+	if lengthStart == lengthEnd || lengthEnd >= len(data) || data[lengthEnd] != ':' {
+		return serializedString, false
+	}
+
+	quoteStart := lengthEnd + 1
+	if quoteStart >= len(data) {
+		return serializedString, false
+	}
+
+	if data[quoteStart] == '"' {
+		serializedString.quoteStyle = rawSerializedQuote
+		serializedString.lengthMode = literalSerializedLength
+		serializedString.contentStart = quoteStart + 1
+	} else if quoteStart+1 < len(data) && data[quoteStart] == '\\' && data[quoteStart+1] == '"' {
+		serializedString.quoteStyle = escapedSerializedQuote
+		serializedString.lengthMode = sqlSerializedLength
+		serializedString.contentStart = quoteStart + 2
+	} else {
+		return serializedString, false
+	}
+
+	serializedString.end = bestEffortSerializedEnd(data, serializedString)
+	if serializedString.end != len(data) {
+		return serializedString, false
+	}
+
+	serializedString.contentEnd = serializedString.end - serializedCloseLength(serializedString.quoteStyle)
+	return serializedString, true
+}
+
+func appendReplacedSerializedString(rebuilt []byte, source []byte, serializedString serializedStringToken, replacements []*Replacement) []byte {
+	content := replaceByPart(source[serializedString.contentStart:serializedString.contentEnd], replacements)
+
+	rebuilt = append(rebuilt, 's', ':')
+	rebuilt = strconv.AppendInt(rebuilt, int64(countEncodedBytes(content, serializedString.lengthMode)), 10)
+	rebuilt = append(rebuilt, ':')
+
+	if serializedString.quoteStyle == escapedSerializedQuote {
+		rebuilt = append(rebuilt, '\\')
+	}
+	rebuilt = append(rebuilt, '"')
+	rebuilt = append(rebuilt, content...)
+	if serializedString.quoteStyle == escapedSerializedQuote {
+		rebuilt = append(rebuilt, '\\')
+	}
+	rebuilt = append(rebuilt, '"', ';')
+
+	return rebuilt
+}
+
+func serializedCloseMatches(data []byte, serializedString serializedStringToken) bool {
+	contentEnd := serializedString.contentEnd
+	if serializedString.quoteStyle == escapedSerializedQuote {
+		return contentEnd+2 < len(data) && data[contentEnd] == '\\' && data[contentEnd+1] == '"' && data[contentEnd+2] == ';'
+	}
+
+	return contentEnd+1 < len(data) && data[contentEnd] == '"' && data[contentEnd+1] == ';'
+}
+
+func serializedCloseLength(quoteStyle serializedQuoteStyle) int {
+	if quoteStyle == escapedSerializedQuote {
+		return 3
+	}
+
+	return 2
+}
+
+func bestEffortSerializedEnd(data []byte, serializedString serializedStringToken) int {
+	closeDelimiter := []byte{'"', ';'}
+	if serializedString.quoteStyle == escapedSerializedQuote {
+		closeDelimiter = []byte{'\\', '"', ';'}
+	}
+
+	closeStart := bytes.Index(data[serializedString.contentStart:], closeDelimiter)
+	if closeStart == -1 {
+		return len(data)
+	}
+
+	return serializedString.contentStart + closeStart + len(closeDelimiter)
+}
+
+func countEncodedBytes(content []byte, lengthMode serializedLengthMode) int {
+	contentLength := 0
+	for contentIndex := 0; contentIndex < len(content); {
+		contentIndex += encodedByteLength(content[contentIndex:], lengthMode)
+		contentLength++
+	}
+
+	return contentLength
+}
+
+func encodedByteLength(content []byte, lengthMode serializedLengthMode) int {
+	if lengthMode == literalSerializedLength {
+		return 1
+	}
+
+	return encodedSQLByteLength(content)
+}
+
+func encodedSQLByteLength(content []byte) int {
+	if len(content) >= 2 && content[0] == '\\' && sqlEscapeRepresentsSingleByte(content[1]) {
+		return 2
+	}
+
+	return 1
+}
+
+func sqlEscapeRepresentsSingleByte(value byte) bool {
+	_, ok := sqlEscapedByte(value)
+	return ok
+}
+
+func sqlEscapedByte(value byte) (byte, bool) {
+	switch value {
+	case '\\':
+		return '\\', true
+	case '\'':
+		return '\'', true
+	case '"':
+		return '"', true
+	case 'n':
+		return '\n', true
+	case 'r':
+		return '\r', true
+	case 't':
+		return '\t', true
+	case 'b':
+		return '\b', true
+	case 'f':
+		return '\f', true
+	case '0':
+		return '0', true
+	case 'Z':
+		return 'Z', true
+	default:
+		return 0, false
+	}
+}
+
+func isDigit(value byte) bool {
+	return value >= '0' && value <= '9'
 }
