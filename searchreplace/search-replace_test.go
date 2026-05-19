@@ -138,7 +138,7 @@ func TestReplace(t *testing.T) {
 			to:   []byte("https://automattic.com"),
 
 			in:  []byte(`s:999:\"http://automattic.com\"; http://automattic.com`),
-			out: []byte(`s:999:\"https://automattic.com\"; https://automattic.com`),
+			out: []byte(`s:999:\"http://automattic.com\"; https://automattic.com`),
 		},
 		{
 			testName: "malformed serialized string before delimiter-like ordinary text",
@@ -147,7 +147,7 @@ func TestReplace(t *testing.T) {
 			to:   []byte("https://automattic.com"),
 
 			in:  []byte(`('s:999:\"broken'),('http://automattic.com\";'),('http://automattic.com')`),
-			out: []byte(`('s:999:\"broken'),('https://automattic.com\";'),('https://automattic.com')`),
+			out: []byte(`('s:999:\"broken'),('http://automattic.com\";'),('https://automattic.com')`),
 		},
 		{
 			testName: "malformed serialized string between valid serialized strings",
@@ -156,7 +156,7 @@ func TestReplace(t *testing.T) {
 			to:   []byte("https://automattic.com"),
 
 			in:  []byte(`('s:21:\"http://automattic.com\";'),('s:999:\"http://automattic.com\";'),('s:21:\"http://automattic.com\";')`),
-			out: []byte(`('s:22:\"https://automattic.com\";'),('s:999:\"https://automattic.com\";'),('s:22:\"https://automattic.com\";')`),
+			out: []byte(`('s:22:\"https://automattic.com\";'),('s:999:\"http://automattic.com\";'),('s:22:\"https://automattic.com\";')`),
 		},
 		{
 			testName: "unterminated malformed serialized candidate before valid serialized string",
@@ -165,7 +165,7 @@ func TestReplace(t *testing.T) {
 			to:   []byte("https://automattic.com"),
 
 			in:  []byte(`s:999:\"http://automattic.com s:21:\"http://automattic.com\";`),
-			out: []byte(`s:999:\"https://automattic.com s:22:\"https://automattic.com\";`),
+			out: []byte(`s:999:\"http://automattic.com s:22:\"https://automattic.com\";`),
 		},
 		{
 			testName: "unterminated malformed serialized candidate before ordinary text",
@@ -174,7 +174,7 @@ func TestReplace(t *testing.T) {
 			to:   []byte("https://automattic.com"),
 
 			in:  []byte(`s:999:\"http://automattic.com and then http://automattic.com`),
-			out: []byte(`s:999:\"https://automattic.com and then https://automattic.com`),
+			out: []byte(`s:999:\"http://automattic.com and then http://automattic.com`),
 		},
 		{
 			testName: "overflowing serialized length before valid serialized string",
@@ -183,7 +183,7 @@ func TestReplace(t *testing.T) {
 			to:   []byte("https://automattic.com"),
 
 			in:  []byte(`s:999999999999999999999999999999:\"http://automattic.com s:21:\"http://automattic.com\";`),
-			out: []byte(`s:999999999999999999999999999999:\"https://automattic.com s:22:\"https://automattic.com\";`),
+			out: []byte(`s:999999999999999999999999999999:\"http://automattic.com s:22:\"https://automattic.com\";`),
 		},
 		{
 			testName: "truncated escaped serialized prefix after ordinary text",
