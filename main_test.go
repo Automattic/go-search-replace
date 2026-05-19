@@ -597,6 +597,34 @@ func TestValidateReplacementArgs(t *testing.T) {
 			},
 			wantErr: "only one expanding replacement pair",
 		},
+		{
+			testName: "boundary helper accepts shared bytes without affix overlap",
+			args: []string{
+				"aaaaaaaaaa",
+				"bbbbbbbbbb",
+				"cccbbbbbcccbbbbccc",
+				strings.Repeat("d", len("cccbbbbbcccbbbbccc")*maxExpansionFactor),
+			},
+		},
+		{
+			testName: "boundary expansion rejected when seam assembly compounds",
+			args: []string{
+				"aaaa",
+				"abab",
+				"abababab",
+				strings.Repeat("c", 128),
+			},
+			wantErr: "can be assembled across a replacement boundary",
+		},
+		{
+			testName: "boundary expansion accepted when seam assembly within budget",
+			args: []string{
+				"aaaaaaaa",
+				"abababab",
+				"abababab",
+				strings.Repeat("c", 128),
+			},
+		},
 	}
 
 	for _, test := range tests {

@@ -286,15 +286,20 @@ func replaceAllWithLimit(in string, from string, to string, limit int) (string, 
 	return strings.ReplaceAll(in, from, to), true
 }
 
+// validateBoundaryExpansionChain rejects a later expanding pair whose <from>
+// can be assembled across the seam between two adjacent copies of current
+// (the post-earlier replacement stream) when the resulting amortized output
+// per input copy of earlier.from would exceed maxExpansionFactor.
 func validateBoundaryExpansionChain(earlier replacementPair, current string, later replacementPair) error {
-	overlapCount := aggregateBoundaryOverlapCount(current, later.from)
-	if overlapCount == 0 {
+	if !boundarySeamAssemblesMatch(current, later.from) {
 		return nil
 	}
 
-	matchCount := (overlapCount + len(later.from) - 1) / len(later.from)
-	originalLength := len(earlier.from) + matchCount*len(later.from) - overlapCount
-	updatedLength := len(current) - overlapCount + matchCount*len(later.to)
+	// Amortized worst case: every seam between adjacent copies of current
+	// hosts one later.from match, replaced by later.to. Output per input
+	// copy of earlier.from is len(current) + (len(later.to) - len(later.from)).
+	originalLength := len(earlier.from)
+	updatedLength := len(current) + len(later.to) - len(later.from)
 
 	if updatedLength > originalLength*maxExpansionFactor {
 		return newBoundaryExpansionChainError(earlier, later)
@@ -303,20 +308,41 @@ func validateBoundaryExpansionChain(earlier replacementPair, current string, lat
 	return nil
 }
 
-func aggregateBoundaryOverlapCount(current string, laterFrom string) int {
-	var bytesInLaterFrom [256]bool
-	for index := 0; index < len(laterFrom); index++ {
-		bytesInLaterFrom[laterFrom[index]] = true
+// boundarySeamAssemblesMatch reports whether laterFrom can occur across the
+// boundary between two adjacent copies of current, i.e., whether there is an
+// i in [1, L-1] with current ending in laterFrom[:i] and current beginning
+// with laterFrom[i:]. Equivalent to suffixOverlap + prefixOverlap >= L,
+// where suffixOverlap is the largest k such that current ends with
+// laterFrom[:k] and prefixOverlap is the largest k such that current begins
+// with laterFrom[L-k:].
+func boundarySeamAssemblesMatch(current, laterFrom string) bool {
+	L := len(laterFrom)
+	if L < 2 || len(current) == 0 {
+		return false
 	}
 
-	count := 0
-	for index := 0; index < len(current); index++ {
-		if bytesInLaterFrom[current[index]] {
-			count++
+	maxK := L - 1
+	if maxK > len(current) {
+		maxK = len(current)
+	}
+
+	suffixOverlap := 0
+	for k := maxK; k > 0; k-- {
+		if strings.HasSuffix(current, laterFrom[:k]) {
+			suffixOverlap = k
+			break
 		}
 	}
 
-	return count
+	prefixOverlap := 0
+	for k := maxK; k > 0; k-- {
+		if strings.HasPrefix(current, laterFrom[L-k:]) {
+			prefixOverlap = k
+			break
+		}
+	}
+
+	return suffixOverlap+prefixOverlap >= L
 }
 
 func newBoundaryExpansionChainError(earlier replacementPair, later replacementPair) error {
