@@ -678,3 +678,78 @@ func TestUnescapeContentMalformedTrailingBackslash(t *testing.T) {
 		})
 	}
 }
+
+func TestSQLBinaryEscapes(t *testing.T) {
+	for _, test := range []struct {
+		input []byte
+		want  []byte
+	}{
+		{[]byte(`\0`), []byte{0}},
+		{[]byte(`\Z`), []byte{0x1a}},
+		{[]byte(`\q`), []byte{'q'}},
+		{[]byte(`\f`), []byte{'f'}},
+		{[]byte(`\%`), []byte(`\%`)},
+		{[]byte(`\_`), []byte(`\_`)},
+	} {
+		if got := getUnescapedBytesIfEscaped(test.input); !bytes.Equal(got, test.want) {
+			t.Errorf("unescape %q: got %v, want %v", test.input, got, test.want)
+		}
+	}
+}
+
+func TestFixLineMySQLUnknownAndWildcardEscapes(t *testing.T) {
+	for _, test := range []struct {
+		name, input, want string
+	}{
+		{"unknown escape", `s:5:\"a\qold\";`, `s:7:\"a\qnewer\";`},
+		{"percent escape", `s:6:\"a\%old\";`, `s:8:\"a\%newer\";`},
+		{"underscore escape", `s:6:\"a\_old\";`, `s:8:\"a\_newer\";`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			line := []byte(test.input)
+			got := FixLine(&line, []*Replacement{{From: []byte("old"), To: []byte("newer")}})
+			if string(*got) != test.want {
+				t.Fatalf("got %q, want %q", *got, test.want)
+			}
+		})
+	}
+}
+
+func TestFixLinePreservesOverlongSerializedString(t *testing.T) {
+	for _, input := range []string{`s:3:\"abcd\";`, `s:1:\"\%\";`} {
+		line := []byte(input)
+		got := FixLine(&line, []*Replacement{{From: []byte("abcd"), To: []byte("xyzz")}})
+		if string(*got) != input {
+			t.Errorf("got %q, want unchanged %q", *got, input)
+		}
+	}
+}
+
+func TestFixLineSQLControlZ(t *testing.T) {
+	line := []byte(`s:5:\"a\Zold\";`)
+	want := []byte(`s:7:\"a\Znewer\";`)
+	got := FixLine(&line, []*Replacement{{From: []byte("old"), To: []byte("newer")}})
+	if !bytes.Equal(*got, want) {
+		t.Fatalf("got %q, want %q", *got, want)
+	}
+}
+
+func TestFixLineRawSerializationLikeText(t *testing.T) {
+	line := []byte(`INSERT INTO t VALUES ('text s:4:"xxxx"; literal', 'news s:999:" unmatched xxxx');`)
+	want := []byte(`INSERT INTO t VALUES ('text s:4:"yyyyy"; literal', 'news s:999:" unmatched yyyyy');`)
+	got := FixLine(&line, []*Replacement{{From: []byte("xxxx"), To: []byte("yyyyy")}})
+	if !bytes.Equal(*got, want) {
+		t.Fatalf("got %q, want %q", *got, want)
+	}
+}
+
+func TestFixLineSQLSerializedBinaryBytes(t *testing.T) {
+	line := append([]byte(`s:5:\"`), []byte{0, 0xff, 'o', 'l', 'd'}...)
+	line = append(line, []byte(`\";`)...)
+	want := append([]byte(`s:7:\"`), []byte{0, 0xff, 'n', 'e', 'w', 'e', 'r'}...)
+	want = append(want, []byte(`\";`)...)
+	got := FixLine(&line, []*Replacement{{From: []byte("old"), To: []byte("newer")}})
+	if !bytes.Equal(*got, want) {
+		t.Fatalf("got %q, want %q", *got, want)
+	}
+}
