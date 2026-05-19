@@ -61,6 +61,8 @@ func replaceByPart(part []byte, replacements []*Replacement) []byte {
 
 var serializedStringPrefixRegexp = regexp.MustCompile(`s:(\d+):\\"`)
 
+var serializedStringTerminator = []byte(`\";`)
+
 func recoverFromSerializedParseError(linePart []byte, replacements []*Replacement) ([]byte, []byte) {
 	match := serializedStringPrefixRegexp.FindSubmatchIndex(linePart)
 	if match == nil {
@@ -78,15 +80,28 @@ func recoverFromSerializedParseError(linePart []byte, replacements []*Replacemen
 }
 
 func malformedSerializedResumeIndex(linePart []byte, serializedStart int, contentStart int) int {
-	minResumeIndex := serializedStart + 1
-	if contentStart < minResumeIndex {
-		return minResumeIndex
+	searchStart := contentStart
+	if searchStart < serializedStart+1 {
+		searchStart = serializedStart + 1
 	}
-	if contentStart > len(linePart) {
+	if searchStart > len(linePart) {
 		return len(linePart)
 	}
 
-	return contentStart
+	resumeIndex := len(linePart)
+
+	if terminatorIndex := bytes.Index(linePart[searchStart:], serializedStringTerminator); terminatorIndex >= 0 {
+		resumeIndex = searchStart + terminatorIndex + len(serializedStringTerminator)
+	}
+
+	if match := serializedStringPrefixRegexp.FindIndex(linePart[searchStart:]); match != nil {
+		prefixIndex := searchStart + match[0]
+		if prefixIndex < resumeIndex {
+			resumeIndex = prefixIndex
+		}
+	}
+
+	return resumeIndex
 }
 
 func fixLineWithSerializedData(linePart []byte, replacements []*Replacement) (*SerializedReplaceResult, error) {
