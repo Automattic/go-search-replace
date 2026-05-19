@@ -2,11 +2,14 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/Automattic/go-search-replace/searchreplace"
 )
 
 var (
@@ -29,6 +32,125 @@ func doMainTest(t *testing.T, input string, expected string, mainArgs []string) 
 
 	if actual != expected {
 		t.Errorf("%v does not match expected: %v", actual, expected)
+	}
+}
+
+type failingReader struct {
+	value        string
+	err          error
+	read         bool
+	errWithValue bool
+}
+
+func (r *failingReader) Read(p []byte) (int, error) {
+	if r.read {
+		return 0, r.err
+	}
+
+	r.read = true
+	n := copy(p, r.value)
+	if r.errWithValue {
+		return n, r.err
+	}
+	return n, nil
+}
+
+func testReplacements() []*searchreplace.Replacement {
+	return []*searchreplace.Replacement{
+		{
+			From: []byte("http://uss-enterprise.com"),
+			To:   []byte("https://ncc-1701-d.space"),
+		},
+	}
+}
+
+func TestRunReturnsNonZeroOnReadError(t *testing.T) {
+	readError := errors.New("stdin read failed")
+	stdin := &failingReader{
+		value: "Check out: http://uss-enterprise.com/decks/10/sections/forward\n",
+		err:   readError,
+	}
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	code := run(stdin, &out, &errOut, testReplacements())
+
+	if code != 1 {
+		t.Errorf("Expected exit code 1, got %d", code)
+	}
+
+	expected := "Check out: https://ncc-1701-d.space/decks/10/sections/forward\n"
+	if out.String() != expected {
+		t.Errorf("%v does not match expected: %v", out.String(), expected)
+	}
+
+	if !strings.Contains(errOut.String(), readError.Error()) {
+		t.Errorf("Expected stderr to contain %q, got %q", readError.Error(), errOut.String())
+	}
+}
+
+func TestRunProcessesPartialLineReturnedWithReadError(t *testing.T) {
+	readError := errors.New("stdin read failed")
+	stdin := &failingReader{
+		value:        "Check out: http://uss-enterprise.com/decks/10/sections/forward",
+		err:          readError,
+		errWithValue: true,
+	}
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	code := run(stdin, &out, &errOut, testReplacements())
+
+	if code != 1 {
+		t.Errorf("Expected exit code 1, got %d", code)
+	}
+
+	expected := "Check out: https://ncc-1701-d.space/decks/10/sections/forward"
+	if out.String() != expected {
+		t.Errorf("%v does not match expected: %v", out.String(), expected)
+	}
+
+	if !strings.Contains(errOut.String(), readError.Error()) {
+		t.Errorf("Expected stderr to contain %q, got %q", readError.Error(), errOut.String())
+	}
+}
+
+func TestRunReturnsZeroAtEOF(t *testing.T) {
+	var tests = []struct {
+		testName string
+		in       string
+		out      string
+	}{
+		{
+			testName: "with newline",
+			in:       "Check out: http://uss-enterprise.com/decks/10/sections/forward\n",
+			out:      "Check out: https://ncc-1701-d.space/decks/10/sections/forward\n",
+		},
+		{
+			testName: "without newline",
+			in:       "Check out: http://uss-enterprise.com/decks/10/sections/forward",
+			out:      "Check out: https://ncc-1701-d.space/decks/10/sections/forward",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			var out bytes.Buffer
+			var errOut bytes.Buffer
+			code := run(strings.NewReader(test.in), &out, &errOut, testReplacements())
+
+			if code != 0 {
+				t.Errorf("Expected exit code 0, got %d", code)
+			}
+
+			if out.String() != test.out {
+				t.Errorf("%v does not match expected: %v", out.String(), test.out)
+			}
+
+			if errOut.String() != "" {
+				t.Errorf("Expected empty stderr, got %q", errOut.String())
+			}
+		})
 	}
 }
 
