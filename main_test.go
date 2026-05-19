@@ -743,3 +743,64 @@ func TestInvalidArgsFailBeforeProcessing(t *testing.T) {
 		t.Error("Expected invalid <from> error, got:", stderr)
 	}
 }
+
+func TestBoundarySeamAssemblesMatch(t *testing.T) {
+	tests := []struct {
+		testName  string
+		current   string
+		laterFrom string
+		want      bool
+	}{
+		{
+			testName:  "mismatched-split max overlaps do not assemble",
+			current:   "cdefabcd",
+			laterFrom: "abcdef",
+			want:      false,
+		},
+		{
+			testName:  "single split assembles full match",
+			current:   "abab",
+			laterFrom: "abababab",
+			want:      true,
+		},
+		{
+			testName:  "current equals laterFrom",
+			current:   "abababab",
+			laterFrom: "abababab",
+			want:      true,
+		},
+		{
+			testName:  "disjoint alphabets",
+			current:   "bbbbbbbbbb",
+			laterFrom: "ccccccc",
+			want:      false,
+		},
+		{
+			testName:  "shared bytes without affix overlap",
+			current:   "bbbbbbbbbb",
+			laterFrom: "cccbbbbbcccbbbbccc",
+			want:      false,
+		},
+		{
+			testName:  "single byte laterFrom never assembles",
+			current:   "aaaa",
+			laterFrom: "a",
+			want:      false,
+		},
+		{
+			testName:  "empty current never assembles",
+			current:   "",
+			laterFrom: "abc",
+			want:      false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			got := boundarySeamAssemblesMatch(test.current, test.laterFrom)
+			if got != test.want {
+				t.Errorf("boundarySeamAssemblesMatch(%q, %q) = %v, want %v", test.current, test.laterFrom, got, test.want)
+			}
+		})
+	}
+}

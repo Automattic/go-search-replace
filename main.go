@@ -309,40 +309,27 @@ func validateBoundaryExpansionChain(earlier replacementPair, current string, lat
 }
 
 // boundarySeamAssemblesMatch reports whether laterFrom can occur across the
-// boundary between two adjacent copies of current, i.e., whether there is an
-// i in [1, L-1] with current ending in laterFrom[:i] and current beginning
-// with laterFrom[i:]. Equivalent to suffixOverlap + prefixOverlap >= L,
-// where suffixOverlap is the largest k such that current ends with
-// laterFrom[:k] and prefixOverlap is the largest k such that current begins
-// with laterFrom[L-k:].
+// boundary between two adjacent copies of current, i.e., whether there exists
+// a single split i in [1, L-1] such that current ends with laterFrom[:i] and
+// current also begins with laterFrom[i:]. Each candidate split is checked
+// directly because independently-maximized prefix and suffix overlaps may
+// come from different splits and do not imply a simultaneous match.
 func boundarySeamAssemblesMatch(current, laterFrom string) bool {
 	L := len(laterFrom)
 	if L < 2 || len(current) == 0 {
 		return false
 	}
 
-	maxK := L - 1
-	if maxK > len(current) {
-		maxK = len(current)
-	}
-
-	suffixOverlap := 0
-	for k := maxK; k > 0; k-- {
-		if strings.HasSuffix(current, laterFrom[:k]) {
-			suffixOverlap = k
-			break
+	for i := 1; i < L; i++ {
+		if i > len(current) || L-i > len(current) {
+			continue
+		}
+		if strings.HasSuffix(current, laterFrom[:i]) && strings.HasPrefix(current, laterFrom[i:]) {
+			return true
 		}
 	}
 
-	prefixOverlap := 0
-	for k := maxK; k > 0; k-- {
-		if strings.HasPrefix(current, laterFrom[L-k:]) {
-			prefixOverlap = k
-			break
-		}
-	}
-
-	return suffixOverlap+prefixOverlap >= L
+	return false
 }
 
 func newBoundaryExpansionChainError(earlier replacementPair, later replacementPair) error {
