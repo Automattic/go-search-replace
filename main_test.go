@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
+	"io"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -205,6 +207,49 @@ func TestMultipleReplaceWithoutNewlineAtEOF(t *testing.T) {
 	input := "Space, the final frontier!\nCheck out: http://uss-enterprise.com/decks/10/sections/forward"
 	expected := "Space, the final frontier!\nCheck out: warp://ncc-1701-d.space/decks/10/areas/forward"
 	doMainTest(t, input, expected, mainArgs)
+}
+
+func TestInputLineLongerThanLimitFails(t *testing.T) {
+	mainArgs := []string{
+		"http://uss-enterprise.com",
+		"https://ncc-1701-d.space",
+	}
+
+	execArgs := append([]string{"run", basePath}, mainArgs...)
+	cmd := exec.Command("go", execArgs...)
+
+	cmd.Stdin = strings.NewReader(strings.Repeat("x", maxInputLineSize+1))
+
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err == nil {
+		t.Fatal("expected command to fail for an input line over the maximum size")
+	}
+
+	if out.Len() != 0 {
+		t.Errorf("expected no stdout for over-limit input, got %q", out.String())
+	}
+
+	if !strings.Contains(stderr.String(), "input line exceeds maximum size") {
+		t.Errorf("expected line size error, got %q", stderr.String())
+	}
+}
+
+func TestReadLineAcceptsMaximumSize(t *testing.T) {
+	input := strings.Repeat("x", maxInputLineSize)
+	reader := bufio.NewReaderSize(strings.NewReader(input), maxInputLineSize)
+
+	line, err := readLine(reader, maxInputLineSize)
+	if err != io.EOF {
+		t.Fatalf("expected EOF after reading maximum-size line, got %v", err)
+	}
+
+	if len(line) != maxInputLineSize {
+		t.Fatalf("expected line length %d, got %d", maxInputLineSize, len(line))
+	}
 }
 
 func TestSerializedReplaceWithCss(t *testing.T) {

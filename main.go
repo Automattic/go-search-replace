@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -19,12 +20,15 @@ const (
 	minInLength  = 4
 	minOutLength = 2
 
+	maxInputLineSize = 16 * 1024 * 1024 // 16 MB
+
 	version = "0.0.11"
 )
 
 var (
-	input = regexp.MustCompile(inputRe)
-	bad   = regexp.MustCompile(badInputRe)
+	input               = regexp.MustCompile(inputRe)
+	bad                 = regexp.MustCompile(badInputRe)
+	errInputLineTooLong = errors.New("input line exceeds maximum size")
 )
 
 func main() {
@@ -97,10 +101,9 @@ func process(input io.Reader, output io.Writer, errorOutput io.Writer, replaceme
 	go func() {
 		defer wg.Done()
 
-		bufferSize := 16 * 1024 * 1024 // 16 MB
-		r := bufio.NewReaderSize(input, bufferSize)
+		r := bufio.NewReaderSize(input, maxInputLineSize)
 		for {
-			line, err := r.ReadBytes('\n')
+			line, err := readLine(r, maxInputLineSize)
 
 			if len(line) > 0 {
 				wg.Add(1)
@@ -116,7 +119,11 @@ func process(input io.Reader, output io.Writer, errorOutput io.Writer, replaceme
 
 			if err != nil {
 				if err != io.EOF {
-					fmt.Fprintln(errorOutput, err.Error())
+					if errors.Is(err, errInputLineTooLong) {
+						fmt.Fprintf(errorOutput, "%s of %d bytes\n", errInputLineTooLong, maxInputLineSize)
+					} else {
+						fmt.Fprintln(errorOutput, err.Error())
+					}
 					readErrors <- err
 				}
 				break
@@ -139,6 +146,27 @@ func process(input io.Reader, output io.Writer, errorOutput io.Writer, replaceme
 	}
 
 	return nil
+}
+
+func readLine(r *bufio.Reader, maxSize int) ([]byte, error) {
+	var line []byte
+
+	for {
+		fragment, err := r.ReadSlice('\n')
+		if len(fragment) > 0 {
+			if len(line)+len(fragment) > maxSize {
+				return nil, errInputLineTooLong
+			}
+
+			line = append(line, fragment...)
+		}
+
+		if err == bufio.ErrBufferFull {
+			continue
+		}
+
+		return line, err
+	}
 }
 
 func validInput(in string, length int) bool {
