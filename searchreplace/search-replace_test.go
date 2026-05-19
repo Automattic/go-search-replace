@@ -347,3 +347,114 @@ func TestFix(t *testing.T) {
 		})
 	}
 }
+
+func TestFixLineMalformedSerializedData(t *testing.T) {
+	var tests = []struct {
+		testName string
+		in       []byte
+	}{
+		{
+			testName: "claimed byte count larger than content",
+			in:       []byte(`s:100:\"short\";`),
+		},
+		{
+			testName: "prefix only incomplete marker",
+			in:       []byte(`s:10:\"`),
+		},
+		{
+			testName: "unterminated serialized content before EOF",
+			in:       []byte(`s:5:\"short`),
+		},
+		{
+			testName: "incomplete trailing escape near EOF",
+			in:       []byte(`s:10:\"short\`),
+		},
+		{
+			testName: "EOF during terminator probe after declared byte count reached",
+			in:       []byte(`s:1:\"a\`),
+		},
+		{
+			testName: "EOF during escaped byte pair before declared byte count reached",
+			in:       []byte(`s:2:\"a\`),
+		},
+		{
+			testName: "overflowing declared byte count",
+			in:       []byte(`s:999999999999999999999999:\"x\";`),
+		},
+		{
+			testName: "negative-ish overflowing declared byte count via even-larger digits",
+			in:       []byte(`s:99999999999999999999999999999999999999999999999999:\"x\";`),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			line := append([]byte{}, test.in...)
+			expected := append([]byte{}, test.in...)
+
+			replaced := FixLine(&line, []*Replacement{
+				{
+					From: []byte("short"),
+					To:   []byte("longer"),
+				},
+			})
+
+			if !bytes.Equal(*replaced, expected) {
+				t.Error("Expected:", string(expected), "Actual:", string(*replaced))
+			}
+		})
+	}
+}
+
+func TestGetUnescapedBytesIfEscapedMalformedInput(t *testing.T) {
+	var tests = []struct {
+		testName string
+		in       []byte
+		out      []byte
+	}{
+		{
+			testName: "nil input",
+			in:       nil,
+			out:      nil,
+		},
+		{
+			testName: "single backslash",
+			in:       []byte(`\`),
+			out:      []byte(`\`),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			unescaped := getUnescapedBytesIfEscaped(test.in)
+
+			if !bytes.Equal(unescaped, test.out) {
+				t.Error("Expected:", string(test.out), "Actual:", string(unescaped))
+			}
+		})
+	}
+}
+
+func TestUnescapeContentMalformedTrailingBackslash(t *testing.T) {
+	var tests = []struct {
+		testName string
+		in       []byte
+		out      []byte
+	}{
+		{
+			testName: "trailing single backslash",
+			in:       []byte(`short\`),
+			out:      []byte(`short\`),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			unescaped := unescapeContent(test.in)
+
+			if !bytes.Equal(unescaped, test.out) {
+				t.Error("Expected:", string(test.out), "Actual:", string(unescaped))
+			}
+		})
+	}
+}

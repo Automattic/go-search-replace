@@ -83,13 +83,12 @@ func fixLineWithSerializedData(linePart []byte, replacements []*Replacement) (*S
 
 	originalBytes := linePart[match[2]:match[3]]
 
-	originalByteSize, _ := strconv.Atoi(string(originalBytes))
+	originalByteSize, err := strconv.Atoi(string(originalBytes))
+	if err != nil {
+		return nil, fmt.Errorf("faulty serialized data: invalid declared byte count: %w", err)
+	}
 
-	// the following assumes escaped double quotes
-	// i.e. s:5:\"x -> we'll need to shift our index from '5' to 'x' - hence shifting by 3
-	// MySQL can optionally not escape the double quote,
-	// but generally sqldumps always include the quotes.
-	contentStartIndex := match[3] + 3
+	contentStartIndex := match[1]
 
 	currentContentIndex := contentStartIndex
 
@@ -104,21 +103,15 @@ func fixLineWithSerializedData(linePart []byte, replacements []*Replacement) (*S
 	quote := byte('"')
 	nextSliceFound := false
 
-	maxIndex := len(linePart) - 1
-
 	// let's find where the content actually ends.
 	// it should end when the unescaped value is `";`
 	for currentContentIndex < len(linePart) {
-		if currentContentIndex+2 > maxIndex {
-
-			// this algorithm SHOULD work, but in cases where the original byte count does not match
-			// the actual byte count, it'll error out. We'll add this safeguard here.
-			return nil, fmt.Errorf("faulty serialized data: out-of-bound index access detected")
-		}
 		char := linePart[currentContentIndex]
-		secondChar := linePart[currentContentIndex+1]
-		thirdChar := linePart[currentContentIndex+2]
 		if char == backslash && contentByteCount < originalByteSize {
+			if currentContentIndex+1 >= len(linePart) {
+				return nil, fmt.Errorf("faulty serialized data: incomplete escaped byte pair")
+			}
+
 			unescapedBytePair := getUnescapedBytesIfEscaped(linePart[currentContentIndex : currentContentIndex+2])
 			// if we get the byte pair without the backslash, it corresponds to a byte
 			contentByteCount += len(unescapedBytePair)
@@ -128,16 +121,25 @@ func fixLineWithSerializedData(linePart []byte, replacements []*Replacement) (*S
 			continue
 		}
 
-		if char == backslash && secondChar == quote && thirdChar == semicolon && contentByteCount >= originalByteSize {
+		if char == backslash && contentByteCount >= originalByteSize {
+			if currentContentIndex+2 >= len(linePart) {
+				return nil, fmt.Errorf("faulty serialized data: incomplete serialized data terminator")
+			}
 
-			// we're at backslash
+			secondChar := linePart[currentContentIndex+1]
+			thirdChar := linePart[currentContentIndex+2]
 
-			// index of the beginning of the next slice
-			nextSliceIndex = currentContentIndex + 3
-			// we're at backslash, so we need to minus 1 to get the index where the content finishes
-			contentEndIndex = currentContentIndex - 1
-			nextSliceFound = true
-			break
+			if secondChar == quote && thirdChar == semicolon {
+
+				// we're at backslash
+
+				// index of the beginning of the next slice
+				nextSliceIndex = currentContentIndex + 3
+				// we're at backslash, so we need to minus 1 to get the index where the content finishes
+				contentEndIndex = currentContentIndex - 1
+				nextSliceFound = true
+				break
+			}
 		}
 
 		if contentByteCount > originalByteSize {
@@ -148,6 +150,10 @@ func fixLineWithSerializedData(linePart []byte, replacements []*Replacement) (*S
 		currentContentIndex++
 	}
 
+	if nextSliceFound == false {
+		return nil, fmt.Errorf("faulty serialized data: end of serialized data not found")
+	}
+
 	content := append([]byte{}, linePart[contentStartIndex:contentEndIndex+1]...)
 
 	content = replaceByPart(content, replacements)
@@ -156,10 +162,6 @@ func fixLineWithSerializedData(linePart []byte, replacements []*Replacement) (*S
 
 	// and we rebuild the string
 	rebuiltSerializedString := "s:" + strconv.Itoa(contentLength) + ":\\\"" + string(content) + "\\\";"
-
-	if nextSliceFound == false {
-		return nil, fmt.Errorf("faulty serialized data: end of serialized data not found")
-	}
 
 	result := SerializedReplaceResult{
 		Pre:               pre,
@@ -173,6 +175,10 @@ func fixLineWithSerializedData(linePart []byte, replacements []*Replacement) (*S
 func getUnescapedBytesIfEscaped(charPair []byte) []byte {
 
 	backslash := byte('\\')
+
+	if len(charPair) < 2 {
+		return charPair
+	}
 
 	// if the first byte is not a backslash, we don't need to do anything - we'll return the bytes
 	// as per the function name, we'll return both bytes, or return one byte if one byte is actually an escape character
@@ -222,7 +228,7 @@ func unescapeContent(escaped []byte) []byte {
 
 	for index < len(escaped) {
 
-		if escaped[index] == backslash {
+		if escaped[index] == backslash && index+1 < len(escaped) {
 			unescapedBytePair := getUnescapedBytesIfEscaped(escaped[index : index+2])
 			byteLength := len(unescapedBytePair)
 
