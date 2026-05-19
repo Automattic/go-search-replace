@@ -57,6 +57,22 @@ Nagivage to that directory and run
 
 `go-search-replace` will be ready for you to use. Once built you won't have to complete any of the above steps again.
 
+### Container Usage
+
+To build and run the container image locally:
+
+```
+docker build -t go-search-replace .
+cat example-from.com.sql | docker run --rm -i --read-only go-search-replace example-from.com example-to.com > example-to.com.sql
+```
+
+The image runs as a numeric non-root user. The read-only filesystem setting is
+enforced by the container runtime or orchestrator, not by the Dockerfile, so pass
+`--read-only` to `docker run` or set the equivalent option in your deployment
+configuration.
+The Dockerfile healthcheck runs `go-search-replace --version` as a binary
+self-check for this stdin/stdout CLI; it is not a workload health probe.
+
 ## Package Usage
 
 To use it as a package in your Go project, you can install it with the following command:
