@@ -3,15 +3,16 @@
 	"image": "mcr.microsoft.com/devcontainers/go:1.25-bookworm",
 	"features": {
 		"ghcr.io/devcontainers/features/github-cli:1": {
-			"installDirectlyFromGitHubRelease": true,
 			"version": "latest"
 		},
 		"ghcr.io/devcontainers/features/node:2": {
-			"nodeGypDependencies": true,
 			"version": "lts",
 			"npmVersion": "latest",
 			"pnpmVersion": "none",
 			"nvmVersion": "latest"
+		},
+		"ghcr.io/devcontainers-extra/features/ripgrep:1": {
+			"version": "latest"
 		}
 	},
 	"customizations": {
