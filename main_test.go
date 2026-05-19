@@ -266,3 +266,52 @@ func TestInput(t *testing.T) {
 		})
 	}
 }
+
+func TestReplacementLimits(t *testing.T) {
+	binary := filepath.Join(t.TempDir(), "search-replace")
+	if runtime.GOOS == "windows" {
+		binary += ".exe"
+	}
+	if output, err := exec.Command("go", "build", "-o", binary, basePath).CombinedOutput(); err != nil {
+		t.Fatalf("build: %v: %s", err, output)
+	}
+
+	tests := []struct {
+		name          string
+		args          []string
+		input, output string
+		code          int
+	}{
+		{"max length accepted", []string{strings.Repeat("a", 2048), "bb"}, "input", "input", 0},
+		{"long from rejected", []string{strings.Repeat("a", 2049), "bb"}, "input", "", 2},
+		{"long to rejected", []string{"aaaa", strings.Repeat("b", 2049)}, "input", "", 3},
+		{"factor accepted", []string{"aaaa", strings.Repeat("b", 64)}, "aaaa", strings.Repeat("b", 64), 0},
+		{"factor rejected", []string{"aaaa", strings.Repeat("b", 65)}, "aaaa", "", 3},
+		{"two expansions accepted", []string{"aaaa", "bbbbb", "cccc", "ddddd"}, "aaaacccc", "bbbbbddddd", 0},
+		{"multiple local domains", []string{"prod.example.com", "prod.vip.lndo.site", "www.example.com", "www.vip.lndo.site"}, "prod.example.com www.example.com", "prod.vip.lndo.site www.vip.lndo.site", 0},
+		{"combined factor accepted", []string{"aaaa", "bbbbbbbbbbbbbbbb", "cccc", "dddddddddddddddd"}, "aaaacccc", "bbbbbbbbbbbbbbbbdddddddddddddddd", 0},
+		{"combined factor rejected", []string{"aaaa", "bbbbbbbbbbbbbbbb", "cccc", "ddddddddddddddddd"}, "aaaacccc", "", 3},
+		{"seam at factor limit", []string{"aaaa", "abab", "abababab", strings.Repeat("c", 128)}, "aaaaaaaa", strings.Repeat("c", 128), 0},
+		{"path-like values remain accepted", []string{"wp-content/uploads", "other/uploads"}, "wp-content/uploads", "other/uploads", 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := exec.Command(binary, tt.args...)
+			cmd.Stdin = strings.NewReader(tt.input)
+			var stdout, stderr bytes.Buffer
+			cmd.Stdout, cmd.Stderr = &stdout, &stderr
+			err := cmd.Run()
+			code := 0
+			if err != nil {
+				if exitErr, ok := err.(*exec.ExitError); ok {
+					code = exitErr.ExitCode()
+				} else {
+					t.Fatal(err)
+				}
+			}
+			if code != tt.code || stdout.String() != tt.output {
+				t.Errorf("exit %d, stdout %q, stderr %q; want exit %d, stdout %q", code, stdout.String(), stderr.String(), tt.code, tt.output)
+			}
+		})
+	}
+}

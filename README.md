@@ -24,6 +24,11 @@ be used in domain names. Since the most common usage for search-replace is
 changing domain names or switching http: to https:, this is an easy way to avoid
 otherwise complex issues.
 
+Each replacement argument is limited to 2048 bytes. The product of the length
+ratios of expanding replacement pairs may be at most 16. This bounds ordinary
+replacement growth without restricting the number of expanding pairs. These
+limits do not bound the size of the input stream.
+
 ## Installation
 
 ### From Official Releases

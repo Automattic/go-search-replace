@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"regexp"
 	"sync"
@@ -14,10 +15,12 @@ import (
 )
 
 const (
-	badInputRe   = `\w:\d+:`
-	inputRe      = `^[A-Za-z0-9_\-\.:/]+$`
-	minInLength  = 4
-	minOutLength = 2
+	badInputRe         = `\w:\d+:`
+	inputRe            = `^[A-Za-z0-9_\-\.:/]+$`
+	minInLength        = 4
+	minOutLength       = 2
+	maxArgumentLength  = 2048
+	maxExpansionFactor = 16
 
 	version = "0.0.11"
 )
@@ -53,19 +56,30 @@ func main() {
 	}
 
 	var from, to string
+	expansion := big.NewRat(1, 1)
+	expansionLimit := big.NewRat(maxExpansionFactor, 1)
 	for i := 0; i < len(args)/2; i++ {
 		from = args[i*2]
 		if !validInput(from, minInLength) {
-			fmt.Fprintln(os.Stderr, "Invalid <from> URL, minimum length is 4")
+			fmt.Fprintln(os.Stderr, "Invalid <from> value")
 			os.Exit(2)
 			return
 		}
 
 		to = args[(i*2)+1]
 		if !validInput(to, minOutLength) {
-			fmt.Fprintln(os.Stderr, "Invalid <to>, minimum length is 2")
+			fmt.Fprintln(os.Stderr, "Invalid <to> value")
 			os.Exit(3)
 			return
+		}
+
+		if len(to) > len(from) {
+			expansion.Mul(expansion, big.NewRat(int64(len(to)), int64(len(from))))
+			if expansion.Cmp(expansionLimit) > 0 {
+				fmt.Fprintln(os.Stderr, "Combined replacement expansion exceeds 16x")
+				os.Exit(3)
+				return
+			}
 		}
 
 		replacements = append(replacements, &searchreplace.Replacement{
@@ -142,7 +156,7 @@ func process(input io.Reader, output io.Writer, errorOutput io.Writer, replaceme
 }
 
 func validInput(in string, length int) bool {
-	if len(in) < length {
+	if len(in) < length || len(in) > maxArgumentLength {
 		return false
 	}
 
