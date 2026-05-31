@@ -24,6 +24,10 @@ be used in domain names. Since the most common usage for search-replace is
 changing domain names or switching http: to https:, this is an easy way to avoid
 otherwise complex issues.
 
+This tool repairs PHP serialized string (`s:`) lengths in SQL dump bytes. It is
+not a full PHP serializer/parser and does not repair class-name or custom-payload
+lengths in `O:` or `C:` tokens if replacements affect them.
+
 ## Installation
 
 ### From Official Releases
