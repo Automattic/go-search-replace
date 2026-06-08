@@ -327,6 +327,149 @@ func TestReplace(t *testing.T) {
 	}
 }
 
+func TestFixLinePHPSerializePHPTInspiredCases(t *testing.T) {
+	var tests = []struct {
+		testName     string
+		in           []byte
+		out          []byte
+		replacements []*Replacement
+	}{
+		{
+			testName: "php serialize empty string",
+			in:       []byte(`s:0:\"\";`),
+			out:      []byte(`s:0:\"\";`),
+			replacements: []*Replacement{
+				{
+					From: []byte("missing"),
+					To:   []byte("unused"),
+				},
+			},
+		},
+		{
+			testName: "php serialize simple string grows after replacement",
+			in:       []byte(`s:3:\"cat\";`),
+			out:      []byte(`s:6:\"kitten\";`),
+			replacements: []*Replacement{
+				{
+					From: []byte("cat"),
+					To:   []byte("kitten"),
+				},
+			},
+		},
+		{
+			testName: "php serialize simple string shrinks after replacement",
+			in:       []byte(`s:5:\"hello\";`),
+			out:      []byte(`s:2:\"hi\";`),
+			replacements: []*Replacement{
+				{
+					From: []byte("hello"),
+					To:   []byte("hi"),
+				},
+			},
+		},
+		{
+			testName: "php serialize byte length counts utf8 bytes",
+			in:       []byte(`s:5:\"café\";`),
+			out:      []byte(`s:4:\"cafe\";`),
+			replacements: []*Replacement{
+				{
+					From: []byte("café"),
+					To:   []byte("cafe"),
+				},
+			},
+		},
+		{
+			testName: "php serialize dump escaped null byte counts as one byte",
+			in:       []byte(`s:3:\"a\0b\";`),
+			out:      []byte(`s:5:\"a\0bee\";`),
+			replacements: []*Replacement{
+				{
+					From: []byte("b"),
+					To:   []byte("bee"),
+				},
+			},
+		},
+		{
+			testName: "php serialize dump escaped newline counts as one byte",
+			in:       []byte(`s:10:\"line\nbreak\";`),
+			out:      []byte(`s:9:\"row\nbreak\";`),
+			replacements: []*Replacement{
+				{
+					From: []byte("line"),
+					To:   []byte("row"),
+				},
+			},
+		},
+		{
+			testName: "php serialize array with adjacent string tokens",
+			in:       []byte(`a:2:{i:0;s:3:\"one\";i:1;s:3:\"two\";}`),
+			out:      []byte(`a:2:{i:0;s:4:\"oone\";i:1;s:4:\"twoo\";}`),
+			replacements: []*Replacement{
+				{
+					From: []byte("o"),
+					To:   []byte("oo"),
+				},
+			},
+		},
+		{
+			testName: "php serialize array repairs string while leaving scalar tokens alone",
+			in:       []byte(`a:2:{i:0;b:1;i:1;s:3:\"yes\";}`),
+			out:      []byte(`a:2:{i:0;b:1;i:1;s:4:\"yeah\";}`),
+			replacements: []*Replacement{
+				{
+					From: []byte("yes"),
+					To:   []byte("yeah"),
+				},
+			},
+		},
+		{
+			testName: "php serialize nested array repairs inner string token",
+			in:       []byte(`a:2:{s:4:\"meta\";a:2:{i:0;s:3:\"old\";i:1;i:7;}s:4:\"flag\";b:1;}`),
+			out:      []byte(`a:2:{s:4:\"meta\";a:2:{i:0;s:5:\"newer\";i:1;i:7;}s:4:\"flag\";b:1;}`),
+			replacements: []*Replacement{
+				{
+					From: []byte("old"),
+					To:   []byte("newer"),
+				},
+			},
+		},
+		{
+			testName: "php serialize-looking literal content stays inside outer string",
+			in:       []byte(`s:24:\"prefix s:3:\"old\"; suffix\";`),
+			out:      []byte(`s:26:\"prefix s:3:\"newer\"; suffix\";`),
+			replacements: []*Replacement{
+				{
+					From: []byte("old"),
+					To:   []byte("newer"),
+				},
+			},
+		},
+		{
+			testName: "php serialize malformed oversized byte count remains unchanged",
+			in:       []byte(`s:6:\"short\";`),
+			out:      []byte(`s:6:\"short\";`),
+			replacements: []*Replacement{
+				{
+					From: []byte("short"),
+					To:   []byte("longer"),
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.testName, func(t *testing.T) {
+			line := append([]byte{}, test.in...)
+
+			replaced := FixLine(&line, test.replacements)
+
+			if !bytes.Equal(*replaced, test.out) {
+				t.Error("Expected:", string(test.out), "Actual:", string(*replaced))
+			}
+		})
+	}
+}
+
 func TestMultiReplace(t *testing.T) {
 	var tests = []struct {
 		testName     string
