@@ -24,6 +24,20 @@ be used in domain names. Since the most common usage for search-replace is
 changing domain names or switching http: to https:, this is an easy way to avoid
 otherwise complex issues.
 
+CLI replacement values may be bare tokens such as `sections` or `https`, scheme
+tokens `http:` and `https:`, bare hosts/domains with optional numeric ports and
+safe path segments such as `example.com:8080/wp-content`, or full `http://` and
+`https://` URLs with a host. Filesystem-style paths, traversal segments,
+unsupported schemes, userinfo, query strings, and fragments are rejected before
+input processing begins.
+
+Replacement pairs are bounded to prevent output blow-up. Each `<to>` value may
+be at most 16× the byte length of its paired `<from>`, and at most one pair per
+invocation may expand its input (i.e. produce a `<to>` longer than its
+`<from>`). The same 16× factor also bounds the cumulative expansion across the
+ordered replacement chain, so later pairs cannot combine with earlier ones —
+including across replacement boundaries — to exceed the per-input limit.
+
 ## Installation
 
 ### From Official Releases
