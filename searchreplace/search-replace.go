@@ -166,7 +166,7 @@ func fixLineWithSerializedData(linePart []byte, replacements []*Replacement) (*S
 			continue
 		}
 
-		if char == backslash && contentByteCount >= originalByteSize {
+		if char == backslash && contentByteCount == originalByteSize {
 			if currentContentIndex+2 >= len(linePart) {
 				return nil, fmt.Errorf("faulty serialized data: incomplete serialized data terminator")
 			}
@@ -187,7 +187,7 @@ func fixLineWithSerializedData(linePart []byte, replacements []*Replacement) (*S
 			}
 		}
 
-		if contentByteCount > originalByteSize {
+		if contentByteCount >= originalByteSize {
 			return nil, fmt.Errorf("faulty serialized data: calculated byte count does not match given data size")
 		}
 
@@ -239,25 +239,21 @@ func getUnescapedBytesIfEscaped(charPair []byte) []byte {
 		'r':  '\r',
 		't':  '\t',
 		'b':  '\b',
-		'f':  '\f',
-		// This should actually be '\x00' instead of '0', but golang do strange things
-		// like terminating length calculations early, if we put a NULL terminator in an array
-		// likely because it thought that the NULL terminator is the end of an array in the memory.
-		//
-		// This is a workaround and doesn't match the function's name, but right now the function
-		// is only being used measuring how many bytes there are, if we unescape the escaped byte representation.
-		// Hence, this is a safe workaround for now.
-		'0': '0',
+		'f':  'f',
+		'0':  0,
+		'Z':  0x1a,
 	}
 
-	actualByte := unescapedMap[charPair[1]]
-
-	if actualByte != 0 {
+	if actualByte, ok := unescapedMap[charPair[1]]; ok {
 		return []byte{actualByte}
 	}
 
-	// what if it's not a valid escape? Do nothing - it's considered as already escaped
-	return charPair
+	// MySQL preserves backslashes before LIKE wildcards outside pattern matching.
+	if charPair[1] == '%' || charPair[1] == '_' {
+		return charPair
+	}
+	// Other unrecognized escapes lose their backslash in a MySQL string literal.
+	return charPair[1:2]
 }
 
 func unescapeContent(escaped []byte) []byte {

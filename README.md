@@ -24,6 +24,12 @@ be used in domain names. Since the most common usage for search-replace is
 changing domain names or switching http: to https:, this is an easy way to avoid
 otherwise complex issues.
 
+This tool repairs PHP serialized string (`s:`) lengths in SQL-escaped dump
+bytes. It is not a full PHP serializer/parser and does not repair class-name or
+custom-payload lengths in `O:` or `C:` tokens if replacements affect them. Its
+escape accounting assumes MySQL backslash escaping; dumps using
+`NO_BACKSLASH_ESCAPES` are not supported by this repair logic.
+
 ## Installation
 
 ### From Official Releases
