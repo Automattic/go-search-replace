@@ -8,7 +8,6 @@ import (
 	"os"
 	"regexp"
 	"sync"
-	"unsafe"
 
 	"github.com/Automattic/go-search-replace/searchreplace"
 )
@@ -131,7 +130,7 @@ func process(input io.Reader, output io.Writer, errorOutput io.Writer, replaceme
 	}()
 
 	for line := range lines {
-		fmt.Fprint(output, unsafeGetString(<-line))
+		output.Write(<-line)
 	}
 
 	if err, ok := <-readErrors; ok {
@@ -155,8 +154,4 @@ func validInput(in string, length int) bool {
 	}
 
 	return true
-}
-
-func unsafeGetString(bs []byte) string {
-	return *(*string)(unsafe.Pointer(&bs))
 }
